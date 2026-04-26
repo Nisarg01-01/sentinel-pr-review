@@ -1,0 +1,2 @@
+azure-functions
+PyGitHub>=2.1.1

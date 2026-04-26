@@ -1,0 +1,45 @@
+diff --git a/src/calculator.py b/src/calculator.py
+new file mode 100644
+--- /dev/null
++++ b/src/calculator.py
+@@ -0,0 +1,20 @@
++def add(a: float, b: float) -> float:
++    """Return the sum of two numbers."""
++    return a + b
++
++def subtract(a: float, b: float) -> float:
++    """Return the difference of two numbers."""
++    return a - b
++
++def multiply(a: float, b: float) -> float:
++    """Return the product of two numbers."""
++    return a * b
++
++def divide(a: float, b: float) -> float:
++    """Return a divided by b. Raises ValueError if b is zero."""
++    if b == 0:
++        raise ValueError("Cannot divide by zero")
++    return a / b
+diff --git a/tests/test_calculator.py b/tests/test_calculator.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_calculator.py
+@@ -0,0 +1,16 @@
++from src.calculator import add, subtract, multiply, divide
++import pytest
++
++def test_add():
++    assert add(2, 3) == 5
++
++def test_subtract():
++    assert subtract(10, 4) == 6
++
++def test_multiply():
++    assert multiply(3, 4) == 12
++
++def test_divide():
++    assert divide(10, 2) == 5.0
++
++def test_divide_by_zero():
++    with pytest.raises(ValueError):
++        divide(1, 0)

@@ -2,7 +2,8 @@ import os
 import json
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
-from src.models import VulnReport
+from src.models import VulnReport, Finding, Severity
+from src.guardrails import sanitize_diff, validate_vuln_output
 
 VULN_SYSTEM_PROMPT = """
 You are the Vulnerability Agent for Sentinel, a security-focused code reviewer.
@@ -38,6 +39,13 @@ Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
 def run_vuln_scan(client: ChatCompletionsClient, pr_diff: str, repo_name: str) -> VulnReport:
+    sanitation = sanitize_diff(pr_diff)
+    if sanitation.injection_detected:
+        print(f"  [GUARDRAIL] Prompt injection detected in diff ({len(sanitation.flagged_lines)} line(s) redacted)")
+        for line in sanitation.flagged_lines:
+            print(f"    Flagged: {line[:120]}")
+    diff_to_use = sanitation.sanitized_diff
+
     response = client.complete(
         model=os.environ["MODEL"],
         messages=[
@@ -48,7 +56,7 @@ Scan this pull request diff for security vulnerabilities.
 Repository: {repo_name}
 
 ## Full Diff
-{pr_diff}
+{diff_to_use}
 
 Return a JSON object with this exact structure:
 {{
@@ -75,5 +83,30 @@ Return a JSON object with this exact structure:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
+
+    validation = validate_vuln_output(text, pr_diff)
+    if not validation.is_valid:
+        print(f"  [GUARDRAIL] Vuln output failed validation: {validation.reason}")
+        print("  [GUARDRAIL] Injecting guardrail finding to flag the anomaly")
+        guardrail_finding = Finding(
+            severity=Severity.HIGH,
+            category="Guardrail Alert",
+            file_path="unknown",
+            line_number=0,
+            title="Vuln agent output failed guardrail validation",
+            description=validation.reason,
+            recommendation="Manually review this PR — automated analysis may have been bypassed.",
+        )
+        try:
+            report = VulnReport(**json.loads(text))
+            report.findings.append(guardrail_finding)
+            report.has_critical = True
+            return report
+        except Exception:
+            return VulnReport(
+                findings=[guardrail_finding],
+                summary=f"Guardrail override: {validation.reason}",
+                has_critical=True,
+            )
 
     return VulnReport(**json.loads(text))

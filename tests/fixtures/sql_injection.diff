@@ -1,0 +1,19 @@
+diff --git a/src/users.py b/src/users.py
+new file mode 100644
+--- /dev/null
++++ b/src/users.py
+@@ -0,0 +1,10 @@
++import sqlite3
++
++def get_user(username: str):
++    conn = sqlite3.connect("users.db")
++    cursor = conn.cursor()
++    query = "SELECT * FROM users WHERE username = '" + username + "'"
++    cursor.execute(query)
++    return cursor.fetchone()
++
++def delete_user(user_id: str):
++    conn = sqlite3.connect("users.db")
++    cursor = conn.cursor()
++    cursor.execute("DELETE FROM users WHERE id = " + user_id)
++    conn.commit()

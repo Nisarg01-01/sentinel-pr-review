@@ -2,16 +2,19 @@ import os
 from dotenv import load_dotenv
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
+from opentelemetry import trace
 
-from src.github_client import GitHubClient
+from src.mcp_client import MCPClient
 from src.agents.triage_agent import run_triage
 from src.agents.vuln_agent import run_vuln_scan
 from src.agents.drift_agent import run_drift_check
 from src.agents.standards_agent import run_standards_check
 from src.agents.report_agent import synthesise_review, format_findings_for_github
 from src.models import VulnReport, DriftReport, QualityReport
+from src.telemetry import setup_telemetry
 
 load_dotenv()
+tracer = setup_telemetry("sentinel")
 
 
 def build_inference_client() -> ChatCompletionsClient:
@@ -38,85 +41,111 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
     print("=" * 60)
 
     client = build_inference_client()
-    gh = GitHubClient()
+    gh = MCPClient()
 
-    # Step 1: Fetch PR data
-    print("Fetching PR data...")
-    metadata = gh.get_pr_metadata(pr_number)
-    diff = gh.get_pr_diff(pr_number)
-    print(f"  Title:         {metadata['title']}")
-    print(f"  Files changed: {len(metadata['changed_files'])}")
-    print(f"  +{metadata['additions']} / -{metadata['deletions']}")
+    with tracer.start_as_current_span("sentinel.review") as root_span:
+        root_span.set_attribute("pr.number", pr_number)
+        root_span.set_attribute("pr.repo", repo_name)
 
-    # Step 2: Triage
-    print("\nRunning Triage Agent...")
-    triage = run_triage(client, metadata, diff)
-    print(f"  Risk level: {triage.risk_level}")
-    print(f"  Reason:     {triage.reason}")
+        # Step 1: Fetch PR data
+        print("Fetching PR data...")
+        with tracer.start_as_current_span("fetch_pr_data"):
+            metadata = gh.get_pr_metadata(pr_number)
+            diff = gh.get_pr_diff(pr_number)
+        print(f"  Title:         {metadata['title']}")
+        print(f"  Files changed: {len(metadata['changed_files'])}")
+        print(f"  +{metadata['additions']} / -{metadata['deletions']}")
 
-    # Step 3: Specialist agents based on triage decision
-    if triage.should_run_vuln_scan:
-        print("\nRunning Vulnerability Agent...")
-        vuln_report = run_vuln_scan(client, diff, repo_name)
-        print(f"  Findings: {len(vuln_report.findings)} | Critical: {vuln_report.has_critical}")
-    else:
-        print("\nSkipping vuln scan (triage decision)")
-        vuln_report = VulnReport(findings=[], summary="Skipped", has_critical=False)
+        # Step 2: Triage
+        print("\nRunning Triage Agent...")
+        with tracer.start_as_current_span("triage_agent") as span:
+            triage = run_triage(client, metadata, diff)
+            span.set_attribute("triage.risk_level", triage.risk_level)
+            span.set_attribute("triage.run_vuln", triage.should_run_vuln_scan)
+            span.set_attribute("triage.run_drift", triage.should_run_drift_check)
+            span.set_attribute("triage.run_standards", triage.should_run_standards_check)
+        print(f"  Risk level: {triage.risk_level}")
+        print(f"  Reason:     {triage.reason}")
 
-    if triage.should_run_drift_check:
-        print("\nRunning Drift Agent...")
-        drift_report = run_drift_check(client, diff)
-        print(f"  Violations: {len(drift_report.violations)}")
-    else:
-        print("\nSkipping drift check (triage decision)")
-        drift_report = DriftReport(violations=[], summary="Skipped", adr_references=[])
+        # Step 3: Specialist agents based on triage decision
+        if triage.should_run_vuln_scan:
+            print("\nRunning Vulnerability Agent...")
+            with tracer.start_as_current_span("vuln_agent") as span:
+                vuln_report = run_vuln_scan(client, diff, repo_name)
+                span.set_attribute("vuln.findings", len(vuln_report.findings))
+                span.set_attribute("vuln.has_critical", vuln_report.has_critical)
+            print(f"  Findings: {len(vuln_report.findings)} | Critical: {vuln_report.has_critical}")
+        else:
+            print("\nSkipping vuln scan (triage decision)")
+            vuln_report = VulnReport(findings=[], summary="Skipped", has_critical=False)
 
-    if triage.should_run_standards_check:
-        print("\nRunning Standards Agent...")
-        quality_report = run_standards_check(client, diff)
-        print(f"  Score: {quality_report.score}/100")
-    else:
-        print("\nSkipping standards check (triage decision)")
-        quality_report = QualityReport(score=100, findings=[], test_coverage_note="Skipped", summary="Skipped")
+        if triage.should_run_drift_check:
+            print("\nRunning Drift Agent...")
+            with tracer.start_as_current_span("drift_agent") as span:
+                drift_report = run_drift_check(client, diff)
+                span.set_attribute("drift.violations", len(drift_report.violations))
+            print(f"  Violations: {len(drift_report.violations)}")
+        else:
+            print("\nSkipping drift check (triage decision)")
+            drift_report = DriftReport(violations=[], summary="Skipped", adr_references=[])
 
-    # Step 4: Synthesise final review
-    print("\nSynthesising final review...")
-    final_review = synthesise_review(vuln_report, drift_report, quality_report)
-    print(f"  Verdict:  {final_review.recommendation}")
-    print(f"  Severity: {final_review.overall_severity}")
+        if triage.should_run_standards_check:
+            print("\nRunning Standards Agent...")
+            with tracer.start_as_current_span("standards_agent") as span:
+                quality_report = run_standards_check(client, diff)
+                span.set_attribute("standards.score", quality_report.score)
+            print(f"  Score: {quality_report.score}/100")
+        else:
+            print("\nSkipping standards check (triage decision)")
+            quality_report = QualityReport(score=100, findings=[], test_coverage_note="Skipped", summary="Skipped")
 
-    # Step 5: Post to GitHub
-    review_body = format_findings_for_github(final_review)
+        # Step 4: Synthesise final review
+        print("\nSynthesising final review...")
+        with tracer.start_as_current_span("synthesise") as span:
+            final_review = synthesise_review(vuln_report, drift_report, quality_report)
+            span.set_attribute("review.verdict", final_review.recommendation)
+            span.set_attribute("review.severity", str(final_review.overall_severity))
+        print(f"  Verdict:  {final_review.recommendation}")
+        print(f"  Severity: {final_review.overall_severity}")
 
-    if dry_run:
-        print("\n[DRY RUN] Review not posted. Preview:")
-        print(review_body)
-    else:
-        print("\nPosting review to GitHub...")
-        gh.post_review_comment(
-            pr_number=pr_number,
-            body=review_body,
-            event=final_review.recommendation,
-        )
+        # Step 5: Post to GitHub
+        review_body = format_findings_for_github(final_review)
 
-        # Post inline comments for critical/high findings
-        inline_candidates = [
-            f for f in (vuln_report.findings + drift_report.violations + quality_report.findings)
-            if f.severity.value in ["CRITICAL", "HIGH"] and f.line_number > 0
-        ]
-        if inline_candidates:
-            print(f"Posting {min(len(inline_candidates), 5)} inline comment(s)...")
-            for finding in inline_candidates[:5]:
-                try:
-                    gh.post_inline_comment(
-                        pr_number=pr_number,
-                        path=finding.file_path,
-                        line=finding.line_number,
-                        body=f"**{finding.severity.value}: {finding.title}**\n\n{finding.description}\n\n**Fix:** {finding.recommendation}",
-                    )
-                    print(f"  Inline comment posted: {finding.file_path}:{finding.line_number}")
-                except Exception as e:
-                    print(f"  Inline comment failed (skipping): {e}")
+        if dry_run:
+            print("\n[DRY RUN] Review not posted. Preview:")
+            print(review_body)
+        else:
+            print("\nPosting review to GitHub...")
+            with tracer.start_as_current_span("post_review") as span:
+                gh.post_review_comment(
+                    pr_number=pr_number,
+                    body=review_body,
+                    event=final_review.recommendation,
+                )
+                span.set_attribute("review.posted", True)
+
+            # Post inline comments for critical/high findings
+            inline_candidates = [
+                f for f in (vuln_report.findings + drift_report.violations + quality_report.findings)
+                if f.severity.value in ["CRITICAL", "HIGH"] and f.line_number > 0
+            ]
+            if inline_candidates:
+                print(f"Posting {min(len(inline_candidates), 5)} inline comment(s)...")
+                for finding in inline_candidates[:5]:
+                    try:
+                        gh.post_inline_comment(
+                            pr_number=pr_number,
+                            path=finding.file_path,
+                            line=finding.line_number,
+                            body=f"**{finding.severity.value}: {finding.title}**\n\n{finding.description}\n\n**Fix:** {finding.recommendation}",
+                        )
+                        print(f"  Inline comment posted: {finding.file_path}:{finding.line_number}")
+                    except Exception as e:
+                        print(f"  Inline comment failed (skipping): {e}")
+
+        root_span.set_attribute("review.vuln_count", len(vuln_report.findings))
+        root_span.set_attribute("review.drift_count", len(drift_report.violations))
+        root_span.set_attribute("review.quality_score", final_review.quality_score)
 
     print("\n" + "=" * 60)
     print("Sentinel review complete!")

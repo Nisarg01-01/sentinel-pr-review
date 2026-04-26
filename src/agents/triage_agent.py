@@ -3,6 +3,7 @@ import json
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
 from src.models import TriageDecision
+from src.guardrails import sanitize_diff, validate_triage_output
 
 TRIAGE_SYSTEM_PROMPT = """
 You are the Triage Agent for Sentinel, an automated PR review system.
@@ -36,6 +37,13 @@ Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
 def run_triage(client: ChatCompletionsClient, pr_metadata: dict, pr_diff: str) -> TriageDecision:
+    sanitation = sanitize_diff(pr_diff)
+    if sanitation.injection_detected:
+        print(f"  [GUARDRAIL] Prompt injection detected in diff ({len(sanitation.flagged_lines)} line(s) redacted)")
+        for line in sanitation.flagged_lines:
+            print(f"    Flagged: {line[:120]}")
+    diff_to_use = sanitation.sanitized_diff
+
     response = client.complete(
         model=os.environ["MODEL"],
         messages=[
@@ -47,7 +55,7 @@ Please triage this PR and decide which review agents to invoke.
 {json.dumps(pr_metadata, indent=2)}
 
 ## Diff Preview (first 3000 chars)
-{pr_diff[:3000]}
+{diff_to_use[:3000]}
 
 Return a JSON object with this exact structure:
 {{
@@ -66,5 +74,17 @@ Return a JSON object with this exact structure:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
+
+    validation = validate_triage_output(text, pr_diff)
+    if not validation.is_valid:
+        print(f"  [GUARDRAIL] Triage output failed validation: {validation.reason}")
+        print("  [GUARDRAIL] Defaulting to run all agents (safe fallback)")
+        return TriageDecision(
+            should_run_vuln_scan=True,
+            should_run_drift_check=True,
+            should_run_standards_check=True,
+            reason=f"Guardrail override: {validation.reason}",
+            risk_level="HIGH",
+        )
 
     return TriageDecision(**json.loads(text))

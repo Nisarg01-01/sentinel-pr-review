@@ -6,8 +6,10 @@ azure-keyvault-secrets
 azure-search-documents
 pydantic>=2.0
 pygithub
+requests
 opentelemetry-sdk
 opentelemetry-exporter-otlp
+azure-monitor-opentelemetry
 python-dotenv
 pytest
 pytest-asyncio

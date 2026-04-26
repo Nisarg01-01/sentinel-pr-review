@@ -1,0 +1,29 @@
+diff --git a/src/stuff.py b/src/stuff.py
+new file mode 100644
+--- /dev/null
++++ b/src/stuff.py
+@@ -0,0 +1,22 @@
++def do_thing(x, y, z, a, b, c, d):
++    temp = x + y
++    data = temp * z
++    foo = data / a
++    result = foo + b - c * d
++    val = result * 2
++    out = val + 3
++    r = out / 7
++    t = r * 11
++    final = t - 99
++    n = final + 1000
++    q = n / 3
++    p = q * 5
++    w = p - 200
++    s = w + 42
++    u = s * 8
++    v = u - 15
++    return v + 0.5
++
++def helper(d):
++    return d
++
++def x(a):
++    pass

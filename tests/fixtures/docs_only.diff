@@ -1,0 +1,25 @@
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # My Project
+
+-A simple project.
++A simple project that does the following:
++
++## Features
++
++- Feature A: handles user authentication
++- Feature B: processes payments
++- Feature C: sends email notifications
+diff --git a/docs/architecture.md b/docs/architecture.md
+new file mode 100644
+--- /dev/null
++++ b/docs/architecture.md
+@@ -0,0 +1,5 @@
++# Architecture
++
++This system uses a three-tier architecture:
++1. Frontend: React
++2. Backend: FastAPI
++3. Database: PostgreSQL

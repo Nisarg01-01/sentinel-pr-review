@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, Field, field_validator
+from typing import Literal, Optional
 from enum import Enum
 
 
@@ -19,6 +19,11 @@ class Finding(BaseModel):
     title: str
     description: str
     recommendation: str
+
+    @field_validator("line_number", mode="before")
+    @classmethod
+    def coerce_none_to_zero(cls, v):
+        return 0 if v is None else v
 
 
 class TriageDecision(BaseModel):
