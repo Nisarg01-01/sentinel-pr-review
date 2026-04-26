@@ -1,0 +1,48 @@
+name: Sentinel PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - master
+      - main
+
+jobs:
+  sentinel-review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Sentinel Review
+        env:
+          PROJECT_ENDPOINT: ${{ secrets.AZURE_FOUNDRY_ENDPOINT }}
+          MODEL: Phi-4-1
+          GITHUB_TOKEN: ${{ secrets.SENTINEL_GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SEARCH_ENDPOINT: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
+          AZURE_SEARCH_INDEX: sentinel-adrs
+          AZURE_SEARCH_KEY: ${{ secrets.AZURE_SEARCH_KEY }}
+        run: |
+          python -c "
+          from src.orchestrator import run_sentinel
+          import os
+          pr_number = int('${{ github.event.pull_request.number }}')
+          result = run_sentinel(pr_number)
+          print(result)
+          "

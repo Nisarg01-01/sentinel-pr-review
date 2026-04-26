@@ -1,7 +1,9 @@
-azure-ai-projects>=2.0.0b3
+azure-ai-inference
+azure-ai-agents
+azure-ai-projects
 azure-identity
 azure-keyvault-secrets
-agent-framework>=1.0.0
+azure-search-documents
 pydantic>=2.0
 pygithub
 opentelemetry-sdk
