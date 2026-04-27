@@ -56,15 +56,17 @@ Copilot is stronger on model quality (fewer false positives) and sees full file 
 
 ---
 
-## Benchmark
+## Results
 
-15 cases extracted from OWASP PyGoat — 10 vulnerable (distinct CWE categories), 5 clean. Each calls the agent directly against a real git diff, no fake PRs.
+### Benchmark — 15 cases from OWASP PyGoat
+
+10 vulnerable cases (distinct CWE categories) + 5 clean cases. Each calls the agent directly against a real git diff — no fake PRs, no mocking.
 
 | Metric | Result |
 |---|---|
-| Recall | **100%** — 10/10 vulnerable cases caught |
-| Precision | **83%** — 10/12 flags were true positives |
-| F1 | **0.91** |
+| **Recall** | **100%** — 10/10 vulnerable cases caught |
+| **Precision** | **83%** — 10/12 flags were true positives |
+| **F1 Score** | **0.91** |
 | False positive rate | 40% (2/5 clean cases) |
 | Triage routing accuracy | **100%** — 5/5 routing decisions correct |
 | Avg review time | 4.2s per case |
@@ -73,23 +75,54 @@ Copilot is stronger on model quality (fewer false positives) and sees full file 
 
 CWEs covered: SQL injection ×2 (CWE-89), command injection (CWE-78), eval injection ×2 (CWE-95), path traversal (CWE-22), hardcoded secrets ×2 (CWE-798), bare except (CWE-390), missing auth (CWE-306).
 
-False positives: `subprocess` with arg list flagged as command injection; `os.path.join` with whitelist validation flagged as path traversal. Both are model over-sensitivity to dangerous API presence without data-flow context — a known diff-scope limitation.
+The 2 false positives are both model over-sensitivity to dangerous API presence without data-flow context (`subprocess` arg list, `os.path.join` with whitelist) — a known diff-scope limitation. Neither would block a merge without a co-occurring true positive.
 
-Full results: [`benchmark/benchmark_results.json`](benchmark/benchmark_results.json)
+### Live test — OWASP PyGoat on GitHub Actions
+
+Installed on a fork of [OWASP PyGoat](https://github.com/adeyosemanputra/pygoat) (4,000+ stars). Three PRs run end-to-end: GitHub webhook → Actions → Phi-4 → PR comment.
+
+| PR | Change | Verdict | Outcome |
+|---|---|---|---|
+| 1 | SQL injection in `views.py:159` | `REQUEST_CHANGES` · CRITICAL | Exact line flagged, ADR-002 + ADR-003 cited |
+| 2 | Clean utility functions | `COMMENT` · LOW | 0 security findings, quality 80/100 — not blocked |
+| 3 | README only | `COMMENT` | Guardrail caught invalid `risk_level: NONE`, safe fallback, no crash |
+
+Average end-to-end review time: ~45–60 seconds per PR (includes GitHub API round-trips).
+
+Full benchmark data: [`benchmark/benchmark_results.json`](benchmark/benchmark_results.json)
 
 ---
 
-## Real-world test — OWASP PyGoat
+## Add Sentinel to your repo
 
-Installed as a composite action on a fork of [OWASP PyGoat](https://github.com/adeyosemanputra/pygoat) (4,000+ stars). Three PRs run end-to-end through GitHub Actions.
+Sentinel is a reusable GitHub Actions composite action. Add this workflow to your repo:
 
-| PR | Change | Verdict | Result |
-|---|---|---|---|
-| 1 | SQL injection in `views.py:159` | REQUEST\_CHANGES · CRITICAL | Caught — exact line flagged, ADR-002 + ADR-003 cited |
-| 2 | Clean utility functions | COMMENT · LOW | 0 security findings, quality score 80/100 |
-| 3 | README only | COMMENT | Guardrail caught invalid `risk_level: NONE`, safe fallback triggered |
+```yaml
+# .github/workflows/sentinel.yml
+name: Sentinel PR Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, master]
 
-Average review time: ~45–60 seconds per PR (includes GitHub API round-trips).
+jobs:
+  sentinel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Nisarg01-01/sentinel-pr-review@master
+        with:
+          project-endpoint: ${{ secrets.AZURE_FOUNDRY_ENDPOINT }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          github-token: ${{ secrets.SENTINEL_GITHUB_TOKEN }}
+          azure-search-endpoint: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
+          azure-search-key: ${{ secrets.AZURE_SEARCH_KEY }}
+```
+
+Then add the 7 secrets under Settings → Secrets → Actions (see [Setup](#setup) for values). Every PR against `main`/`master` will get a Sentinel review — structured comment with verdict, findings, and inline comments on CRITICAL/HIGH lines.
+
+> Requires your own Azure AI Foundry deployment (Phi-4) and Azure AI Search index with ADR documents.
 
 ---
 
