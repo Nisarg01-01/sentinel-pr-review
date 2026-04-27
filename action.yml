@@ -1,0 +1,72 @@
+name: Sentinel PR Review
+description: Multi-agent AI security, architecture, and quality review for pull requests — powered by Azure AI Foundry and Phi-4.
+author: Nisarg Shah
+
+inputs:
+  project-endpoint:
+    description: Azure AI Foundry project endpoint
+    required: true
+  model:
+    description: Deployed model name
+    required: false
+    default: Phi-4-1
+  azure-client-id:
+    description: Azure service principal client ID
+    required: true
+  azure-tenant-id:
+    description: Azure tenant ID
+    required: true
+  azure-client-secret:
+    description: Azure service principal client secret
+    required: true
+  azure-search-endpoint:
+    description: Azure AI Search endpoint
+    required: true
+  azure-search-index:
+    description: Azure AI Search index name containing ADR documents
+    required: false
+    default: sentinel-adrs
+  azure-search-key:
+    description: Azure AI Search admin key
+    required: true
+  mcp-function-url:
+    description: Azure Function URL for the MCP server
+    required: true
+  mcp-function-key:
+    description: Azure Function host key for the MCP server
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Sentinel dependencies
+      shell: bash
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+
+    - name: Run Sentinel Review
+      shell: bash
+      env:
+        PROJECT_ENDPOINT: ${{ inputs.project-endpoint }}
+        MODEL: ${{ inputs.model }}
+        GITHUB_REPO: ${{ github.repository }}
+        AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
+        AZURE_TENANT_ID: ${{ inputs.azure-tenant-id }}
+        AZURE_CLIENT_SECRET: ${{ inputs.azure-client-secret }}
+        AZURE_SEARCH_ENDPOINT: ${{ inputs.azure-search-endpoint }}
+        AZURE_SEARCH_INDEX: ${{ inputs.azure-search-index }}
+        AZURE_SEARCH_KEY: ${{ inputs.azure-search-key }}
+        MCP_FUNCTION_URL: ${{ inputs.mcp-function-url }}
+        MCP_FUNCTION_KEY: ${{ inputs.mcp-function-key }}
+      run: |
+        python -c "
+        from src.orchestrator import run_sentinel
+        import os
+        pr_number = int('${{ github.event.pull_request.number }}')
+        result = run_sentinel(pr_number)
+        print(result)
+        "
