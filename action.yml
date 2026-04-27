@@ -64,8 +64,9 @@ runs:
         MCP_FUNCTION_KEY: ${{ inputs.mcp-function-key }}
       run: |
         python -c "
+        import sys
+        sys.path.insert(0, '${{ github.action_path }}')
         from src.orchestrator import run_sentinel
-        import os
         pr_number = int('${{ github.event.pull_request.number }}')
         result = run_sentinel(pr_number)
         print(result)
