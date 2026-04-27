@@ -2,7 +2,7 @@ import os
 import json
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
-from src.models import VulnReport, Finding, Severity
+from src.models import VulnReport, Finding, Severity, AgentTokenUsage
 from src.guardrails import sanitize_diff, validate_vuln_output
 
 VULN_SYSTEM_PROMPT = """
@@ -38,7 +38,7 @@ If there are no issues, return an empty findings list.
 Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
-def run_vuln_scan(client: ChatCompletionsClient, pr_diff: str, repo_name: str) -> VulnReport:
+def run_vuln_scan(client: ChatCompletionsClient, pr_diff: str, repo_name: str) -> tuple[VulnReport, AgentTokenUsage]:
     sanitation = sanitize_diff(pr_diff)
     if sanitation.injection_detected:
         print(f"  [GUARDRAIL] Prompt injection detected in diff ({len(sanitation.flagged_lines)} line(s) redacted)")
@@ -78,6 +78,12 @@ Return a JSON object with this exact structure:
         ],
     )
 
+    usage = AgentTokenUsage(
+        agent="vuln",
+        prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
+        completion_tokens=response.usage.completion_tokens if response.usage else 0,
+    )
+
     text = response.choices[0].message.content.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
@@ -101,12 +107,12 @@ Return a JSON object with this exact structure:
             report = VulnReport(**json.loads(text))
             report.findings.append(guardrail_finding)
             report.has_critical = True
-            return report
+            return report, usage
         except Exception:
             return VulnReport(
                 findings=[guardrail_finding],
                 summary=f"Guardrail override: {validation.reason}",
                 has_critical=True,
-            )
+            ), usage
 
-    return VulnReport(**json.loads(text))
+    return VulnReport(**json.loads(text)), usage

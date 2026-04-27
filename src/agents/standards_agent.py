@@ -2,7 +2,7 @@ import os
 import json
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
-from src.models import QualityReport
+from src.models import QualityReport, AgentTokenUsage
 
 STANDARDS_SYSTEM_PROMPT = """
 You are the Standards Agent for Sentinel, a code quality reviewer.
@@ -30,7 +30,7 @@ Be constructive. Frame findings as helpful suggestions, not criticism.
 Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
-def run_standards_check(client: ChatCompletionsClient, pr_diff: str) -> QualityReport:
+def run_standards_check(client: ChatCompletionsClient, pr_diff: str) -> tuple[QualityReport, AgentTokenUsage]:
     response = client.complete(
         model=os.environ["MODEL"],
         messages=[
@@ -62,10 +62,16 @@ Return a JSON object with this exact structure:
         ],
     )
 
+    usage = AgentTokenUsage(
+        agent="standards",
+        prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
+        completion_tokens=response.usage.completion_tokens if response.usage else 0,
+    )
+
     text = response.choices[0].message.content.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
 
-    return QualityReport(**json.loads(text))
+    return QualityReport(**json.loads(text)), usage

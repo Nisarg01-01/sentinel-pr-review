@@ -1,6 +1,18 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Optional
 from enum import Enum
+from dataclasses import dataclass
+
+
+@dataclass
+class AgentTokenUsage:
+    agent: str
+    prompt_tokens: int
+    completion_tokens: int
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
 
 
 class Severity(str, Enum):

@@ -4,7 +4,7 @@ from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
-from src.models import DriftReport
+from src.models import DriftReport, AgentTokenUsage
 
 DRIFT_SYSTEM_PROMPT = """
 You are the Architecture Drift Agent for Sentinel.
@@ -55,7 +55,7 @@ def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
     return "\n\n".join(adr_texts), adr_names
 
 
-def run_drift_check(client: ChatCompletionsClient, pr_diff: str) -> DriftReport:
+def run_drift_check(client: ChatCompletionsClient, pr_diff: str) -> tuple[DriftReport, AgentTokenUsage]:
     adr_content, adr_names = search_relevant_adrs(pr_diff)
 
     response = client.complete(
@@ -91,10 +91,16 @@ Return a JSON object with this exact structure:
         ],
     )
 
+    usage = AgentTokenUsage(
+        agent="drift",
+        prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
+        completion_tokens=response.usage.completion_tokens if response.usage else 0,
+    )
+
     text = response.choices[0].message.content.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
 
-    return DriftReport(**json.loads(text))
+    return DriftReport(**json.loads(text)), usage

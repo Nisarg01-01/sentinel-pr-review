@@ -56,25 +56,37 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         print(f"  Files changed: {len(metadata['changed_files'])}")
         print(f"  +{metadata['additions']} / -{metadata['deletions']}")
 
+        token_totals = {"prompt": 0, "completion": 0}
+
         # Step 2: Triage
         print("\nRunning Triage Agent...")
         with tracer.start_as_current_span("triage_agent") as span:
-            triage = run_triage(client, metadata, diff)
+            triage, triage_usage = run_triage(client, metadata, diff)
             span.set_attribute("triage.risk_level", triage.risk_level)
             span.set_attribute("triage.run_vuln", triage.should_run_vuln_scan)
             span.set_attribute("triage.run_drift", triage.should_run_drift_check)
             span.set_attribute("triage.run_standards", triage.should_run_standards_check)
+            span.set_attribute("tokens.prompt", triage_usage.prompt_tokens)
+            span.set_attribute("tokens.completion", triage_usage.completion_tokens)
+            token_totals["prompt"] += triage_usage.prompt_tokens
+            token_totals["completion"] += triage_usage.completion_tokens
         print(f"  Risk level: {triage.risk_level}")
         print(f"  Reason:     {triage.reason}")
+        print(f"  Tokens:     {triage_usage.prompt_tokens}p / {triage_usage.completion_tokens}c")
 
         # Step 3: Specialist agents based on triage decision
         if triage.should_run_vuln_scan:
             print("\nRunning Vulnerability Agent...")
             with tracer.start_as_current_span("vuln_agent") as span:
-                vuln_report = run_vuln_scan(client, diff, repo_name)
+                vuln_report, vuln_usage = run_vuln_scan(client, diff, repo_name)
                 span.set_attribute("vuln.findings", len(vuln_report.findings))
                 span.set_attribute("vuln.has_critical", vuln_report.has_critical)
+                span.set_attribute("tokens.prompt", vuln_usage.prompt_tokens)
+                span.set_attribute("tokens.completion", vuln_usage.completion_tokens)
+                token_totals["prompt"] += vuln_usage.prompt_tokens
+                token_totals["completion"] += vuln_usage.completion_tokens
             print(f"  Findings: {len(vuln_report.findings)} | Critical: {vuln_report.has_critical}")
+            print(f"  Tokens:   {vuln_usage.prompt_tokens}p / {vuln_usage.completion_tokens}c")
         else:
             print("\nSkipping vuln scan (triage decision)")
             vuln_report = VulnReport(findings=[], summary="Skipped", has_critical=False)
@@ -82,9 +94,14 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         if triage.should_run_drift_check:
             print("\nRunning Drift Agent...")
             with tracer.start_as_current_span("drift_agent") as span:
-                drift_report = run_drift_check(client, diff)
+                drift_report, drift_usage = run_drift_check(client, diff)
                 span.set_attribute("drift.violations", len(drift_report.violations))
+                span.set_attribute("tokens.prompt", drift_usage.prompt_tokens)
+                span.set_attribute("tokens.completion", drift_usage.completion_tokens)
+                token_totals["prompt"] += drift_usage.prompt_tokens
+                token_totals["completion"] += drift_usage.completion_tokens
             print(f"  Violations: {len(drift_report.violations)}")
+            print(f"  Tokens:     {drift_usage.prompt_tokens}p / {drift_usage.completion_tokens}c")
         else:
             print("\nSkipping drift check (triage decision)")
             drift_report = DriftReport(violations=[], summary="Skipped", adr_references=[])
@@ -92,9 +109,14 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         if triage.should_run_standards_check:
             print("\nRunning Standards Agent...")
             with tracer.start_as_current_span("standards_agent") as span:
-                quality_report = run_standards_check(client, diff)
+                quality_report, standards_usage = run_standards_check(client, diff)
                 span.set_attribute("standards.score", quality_report.score)
+                span.set_attribute("tokens.prompt", standards_usage.prompt_tokens)
+                span.set_attribute("tokens.completion", standards_usage.completion_tokens)
+                token_totals["prompt"] += standards_usage.prompt_tokens
+                token_totals["completion"] += standards_usage.completion_tokens
             print(f"  Score: {quality_report.score}/100")
+            print(f"  Tokens: {standards_usage.prompt_tokens}p / {standards_usage.completion_tokens}c")
         else:
             print("\nSkipping standards check (triage decision)")
             quality_report = QualityReport(score=100, findings=[], test_coverage_note="Skipped", summary="Skipped")
@@ -146,6 +168,11 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         root_span.set_attribute("review.vuln_count", len(vuln_report.findings))
         root_span.set_attribute("review.drift_count", len(drift_report.violations))
         root_span.set_attribute("review.quality_score", final_review.quality_score)
+        root_span.set_attribute("tokens.total_prompt", token_totals["prompt"])
+        root_span.set_attribute("tokens.total_completion", token_totals["completion"])
+        root_span.set_attribute("tokens.total", token_totals["prompt"] + token_totals["completion"])
+        print(f"\nTotal tokens used: {token_totals['prompt']}p / {token_totals['completion']}c "
+              f"({token_totals['prompt'] + token_totals['completion']} total)")
 
     print("\n" + "=" * 60)
     print("Sentinel review complete!")
@@ -158,6 +185,9 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         "vuln_count": len(vuln_report.findings),
         "drift_count": len(drift_report.violations),
         "quality_findings": len(quality_report.findings),
+        "tokens_prompt": token_totals["prompt"],
+        "tokens_completion": token_totals["completion"],
+        "tokens_total": token_totals["prompt"] + token_totals["completion"],
     }
 
 
