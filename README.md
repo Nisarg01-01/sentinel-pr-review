@@ -260,6 +260,26 @@ Changed only `README.md`. Triage returned `risk_level: NONE` (invalid enum). Gua
 
 ---
 
+## How Sentinel differs from GitHub Copilot code review
+
+GitHub Copilot code review is a general-purpose reviewer — one model pass over the diff producing prose suggestions. Sentinel is purpose-built for security and compliance enforcement with a different architecture.
+
+| Capability | GitHub Copilot review | Sentinel |
+|---|---|---|
+| **Architectural memory** | None — no knowledge of team decisions | RAG over your ADR documents — violations traced to specific ADR by name |
+| **Agent specialization** | Single general-purpose pass | Separate agents for security, architecture, and quality — each with a focused prompt |
+| **Triage / cost efficiency** | Same review on every PR | Triage agent skips irrelevant checks — docs-only PR costs one fast call |
+| **Output format** | Prose comments | Pydantic-validated JSON — severity, CWE, file, line, recommendation |
+| **Merge gating** | Suggestion only | Structured verdict (APPROVE / COMMENT / REQUEST\_CHANGES) by severity |
+| **Guardrails on model output** | None | Output validated for logical consistency — invalid responses trigger safe fallback |
+| **Observability** | None | Per-agent token counts and findings exported to Application Insights via OpenTelemetry |
+
+**Where Copilot is stronger:** it sees the full file context (not diff-only), uses a more capable model (fewer false positives), and integrates into the IDE. Sentinel's 40% false positive rate on clean code reflects the diff-scope limitation and smaller model.
+
+**Where Sentinel fills a gap:** teams with compliance requirements (specific ADRs, security policies, merge gates by severity) need a reviewer that knows their rules — not just generic best practices. Sentinel's RAG-based drift detection and structured output are designed for that use case.
+
+---
+
 ## Project structure
 
 ```
