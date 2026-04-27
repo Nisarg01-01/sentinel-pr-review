@@ -194,6 +194,51 @@ The eval suite (`test_eval.py`) uses synthetic `.diff` fixtures with known issue
 
 ---
 
+## Real-World Test Results
+
+Tested against **[PyGoat](https://github.com/adeyosemanputra/pygoat)** — an intentionally vulnerable Django application maintained by OWASP (4,000+ stars). Sentinel was installed as a GitHub Actions composite action on a personal fork.
+
+| Metric | Result |
+|---|---|
+| **Detection rate** | 1/1 (100%) — caught real SQL injection at exact line (`introduction/views.py:159`) |
+| **False positive rate** | 0 critical/high findings on clean utility code — correctly issued COMMENT, not REQUEST_CHANGES |
+| **ADR cross-reference** | 3 architecture violations correctly traced to ADR-002 (auth) and ADR-003 (error handling) |
+| **Verdict accuracy** | REQUEST_CHANGES on vulnerable PR, COMMENT on clean PR — merge correctly blocked |
+| **Guardrail effectiveness** | Caught invalid model output (`risk_level: NONE`), triggered safe fallback, pipeline did not crash |
+
+### PR 1 — SQL Injection in OWASP PyGoat
+
+Modified `introduction/views.py:159` which contains a real string-concatenation SQL query. Sentinel returned:
+
+```
+Verdict:  REQUEST_CHANGES
+Severity: CRITICAL
+Findings: 1 security issue, 3 architecture violations
+```
+
+Finding: SQL query built via `"SELECT * FROM introduction_login WHERE user='"+name+"'"` — flagged CRITICAL with parameterized query recommendation and cross-referenced against ADR-002 and ADR-003.
+
+### PR 2 — Clean Utility Code
+
+Added `introduction/utils.py` with two typed, documented, tested utility functions. Sentinel returned:
+
+```
+Verdict:  COMMENT
+Severity: LOW
+Security findings: 0
+Quality score: 80/100
+```
+
+No security or architecture findings. Only LOW quality suggestions (missing tests, magic number). False positive rate: 0.
+
+### PR 3 — Docs-Only PR (Guardrail Test)
+
+Changed only `README.md`. Triage agent returned `risk_level: NONE` (invalid enum value). Guardrail caught it, defaulted to running all agents, pipeline completed without crashing. No security findings produced.
+
+**Average review time:** ~45–60 seconds per PR.
+
+---
+
 ## Project structure
 
 ```
