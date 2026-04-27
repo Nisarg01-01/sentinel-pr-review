@@ -25,7 +25,6 @@ Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
 def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
-    """Search Azure AI Search for ADRs relevant to the diff content."""
     endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
     key = os.environ["AZURE_SEARCH_KEY"]
     index_name = os.environ["AZURE_SEARCH_INDEX"]
@@ -36,7 +35,6 @@ def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
         credential=AzureKeyCredential(key),
     )
 
-    # Extract keywords from diff for search query
     keywords = []
     for line in diff.split("\n"):
         if line.startswith("+") and not line.startswith("+++"):

@@ -5,10 +5,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 
 def setup_telemetry(service_name: str = "sentinel") -> trace.Tracer:
-    """
-    Configure OpenTelemetry to export traces to Azure Monitor (Application Insights).
-    Falls back to no-op if connection string is not set.
-    """
     connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
     if connection_string:

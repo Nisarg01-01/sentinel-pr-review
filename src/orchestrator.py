@@ -27,14 +27,6 @@ def build_inference_client() -> ChatCompletionsClient:
 
 
 def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -> dict:
-    """
-    Main entry point. Runs all Sentinel agents on a PR and posts the review to GitHub.
-
-    Args:
-        pr_number: GitHub PR number to review
-        repo_name: Optional repo override. Defaults to GITHUB_REPO env var.
-        dry_run: If True, prints the review but does not post it to GitHub.
-    """
     repo_name = repo_name or os.environ["GITHUB_REPO"]
 
     print(f"\nSentinel starting review for PR #{pr_number} in {repo_name}")
@@ -47,7 +39,6 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         root_span.set_attribute("pr.number", pr_number)
         root_span.set_attribute("pr.repo", repo_name)
 
-        # Step 1: Fetch PR data
         print("Fetching PR data...")
         with tracer.start_as_current_span("fetch_pr_data"):
             metadata = gh.get_pr_metadata(pr_number)
@@ -58,7 +49,6 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
 
         token_totals = {"prompt": 0, "completion": 0}
 
-        # Step 2: Triage
         print("\nRunning Triage Agent...")
         with tracer.start_as_current_span("triage_agent") as span:
             triage, triage_usage = run_triage(client, metadata, diff)
@@ -74,7 +64,6 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         print(f"  Reason:     {triage.reason}")
         print(f"  Tokens:     {triage_usage.prompt_tokens}p / {triage_usage.completion_tokens}c")
 
-        # Step 3: Specialist agents based on triage decision
         if triage.should_run_vuln_scan:
             print("\nRunning Vulnerability Agent...")
             with tracer.start_as_current_span("vuln_agent") as span:
@@ -121,7 +110,6 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
             print("\nSkipping standards check (triage decision)")
             quality_report = QualityReport(score=100, findings=[], test_coverage_note="Skipped", summary="Skipped")
 
-        # Step 4: Synthesise final review
         print("\nSynthesising final review...")
         with tracer.start_as_current_span("synthesise") as span:
             final_review = synthesise_review(vuln_report, drift_report, quality_report)
@@ -130,7 +118,6 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         print(f"  Verdict:  {final_review.recommendation}")
         print(f"  Severity: {final_review.overall_severity}")
 
-        # Step 5: Post to GitHub
         review_body = format_findings_for_github(final_review)
 
         if dry_run:

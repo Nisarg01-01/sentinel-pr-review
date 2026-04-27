@@ -6,7 +6,6 @@ def synthesise_review(
     drift_report: DriftReport,
     quality_report: QualityReport,
 ) -> FinalReview:
-    """Combine all agent reports into a final review. Pure logic — no LLM needed."""
     all_vuln = vuln_report.findings
     all_drift = drift_report.violations
     all_quality = quality_report.findings
@@ -69,7 +68,6 @@ def synthesise_review(
 
 
 def format_findings_for_github(review: FinalReview) -> str:
-    """Format the final review as a GitHub PR comment in Markdown."""
     severity_emoji = {
         "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵", "INFO": "⚪"
     }
