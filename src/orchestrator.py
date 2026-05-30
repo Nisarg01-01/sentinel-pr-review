@@ -23,6 +23,8 @@ def build_inference_client() -> ChatCompletionsClient:
         endpoint=inference_endpoint,
         credential=DefaultAzureCredential(),
         credential_scopes=["https://cognitiveservices.azure.com/.default"],
+        connection_timeout=30,
+        read_timeout=600,
     )
 
 
