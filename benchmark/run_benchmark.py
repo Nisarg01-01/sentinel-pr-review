@@ -19,11 +19,11 @@ import time
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-load_dotenv()
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _repo_root)
+load_dotenv(os.path.join(_repo_root, ".env"))
 
-from azure.ai.inference import ChatCompletionsClient
-from azure.identity import DefaultAzureCredential
+from openai import AzureOpenAI
 from src.agents.vuln_agent import run_vuln_scan
 from src.agents.triage_agent import run_triage
 
@@ -469,12 +469,13 @@ def evaluate(client, case: TestCase) -> Result:
 # Main
 # ---------------------------------------------------------------------------
 
-def build_client() -> ChatCompletionsClient:
-    endpoint = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0] + "/models"
-    return ChatCompletionsClient(
-        endpoint=endpoint,
-        credential=DefaultAzureCredential(),
-        credential_scopes=["https://cognitiveservices.azure.com/.default"],
+def build_client() -> AzureOpenAI:
+    base = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0]
+    return AzureOpenAI(
+        azure_endpoint=base,
+        api_key=os.environ["AZURE_INFERENCE_KEY"],
+        api_version="2025-01-01-preview",
+        timeout=900,
     )
 
 

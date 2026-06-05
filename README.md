@@ -60,7 +60,7 @@ Copilot is one general-purpose model pass producing prose suggestions. Sentinel 
 | **Guardrails** | None | Input sanitized + output validated — safe fallback on failure |
 | **Observability** | None | Per-agent token counts in Application Insights via OpenTelemetry |
 
-Copilot is stronger on model quality (fewer false positives) and sees full file context, not diff-only. Sentinel targets the gap: teams with compliance requirements who need ADR enforcement and structured severity-based merge gates.
+Copilot sees full file context (not diff-only), which reduces false positives on cases where safety depends on code outside the diff. Sentinel targets the gap: teams with compliance requirements who need ADR enforcement and structured severity-based merge gates.
 
 ---
 
@@ -73,21 +73,37 @@ Copilot is stronger on model quality (fewer false positives) and sees full file 
 | Metric | Result |
 |---|---|
 | **Recall** | **100%** — 10/10 vulnerable cases caught |
-| **Precision** | **83%** — 10/12 flags were true positives |
-| **F1 Score** | **0.91** |
-| False positive rate | 40% (2/5 clean cases) |
-| Triage routing accuracy | **100%** — 5/5 routing decisions correct |
-| Avg review time | 4.2s per case |
-| Avg tokens / vuln scan | 756 (595 prompt / 160 completion) |
-| Avg tokens / triage | 590 (504 prompt / 87 completion) |
+| **Precision** | **91%** — 10/11 flags were true positives |
+| **F1 Score** | **0.95** |
+| False positive rate | 20% (1/5 clean cases) |
+| Triage routing accuracy | **80%** — 4/5 routing decisions correct |
+| Avg review time | **2.5s per case** |
+| Avg tokens / vuln scan | 757 (605 prompt / 152 completion) |
+| Avg tokens / triage | 594 (506 prompt / 89 completion) |
 
 CWEs covered: SQL injection ×2 (CWE-89), command injection (CWE-78), eval injection ×2 (CWE-95), path traversal (CWE-22), hardcoded secrets ×2 (CWE-798), bare except (CWE-390), missing auth (CWE-306).
 
-The 2 false positives are both model over-sensitivity to dangerous API presence without data-flow context (`subprocess` arg list, `os.path.join` with whitelist) — a known diff-scope limitation. Neither would block a merge without a co-occurring true positive.
+The 1 false positive is model over-sensitivity to a parameterized query pattern — a known diff-scope limitation where the model flags the query structure without data-flow context to confirm safety.
+
+### Model selection
+
+Originally built on **Phi-4** (Microsoft, GlobalStandard capacity 1). In June 2026 I noticed high latency and checked Azure AI Foundry metrics — time-to-first-byte was under 1ms but time-to-last-byte was averaging **111 seconds**. The bottleneck was token generation speed on the shared capacity node, not networking.
+
+I ran the same 15-case benchmark against three models to pick a replacement:
+
+| Model | Recall | Precision | F1 | False Positive Rate | Avg Time |
+|---|---|---|---|---|---|
+| Phi-4-1 | 100% | 83% | 0.91 | 40% | 4.2s |
+| Phi-4-mini-instruct | 90% | 69% | 0.78 | 100% | 7.1s |
+| **gpt-4.1-mini** | **100%** | **91%** | **0.95** | **20%** | **2.5s** |
+
+gpt-4.1-mini won on every metric. It's faster, more precise, and halves the false positive rate. Phi-4-mini was worse than the original on everything — smaller doesn't mean better for this kind of structured JSON task.
+
+I also switched from the Azure AI model inference API (`/models`) to the OpenAI-compatible endpoint (`/openai/v1/`) at the same time — Microsoft sent a retirement notice for the `/models` API (August 2026) recommending this migration.
 
 ### Live test — OWASP PyGoat on GitHub Actions
 
-Installed on a fork of [OWASP PyGoat](https://github.com/adeyosemanputra/pygoat) (4,000+ stars). Three PRs run end-to-end: GitHub webhook → Actions → Phi-4 → PR comment.
+Installed on a fork of [OWASP PyGoat](https://github.com/adeyosemanputra/pygoat) (4,000+ stars). Three PRs run end-to-end: GitHub webhook → Actions → model → PR comment.
 
 | PR | Change | Verdict | Outcome |
 |---|---|---|---|
@@ -95,7 +111,7 @@ Installed on a fork of [OWASP PyGoat](https://github.com/adeyosemanputra/pygoat)
 | 2 | Clean utility functions | `COMMENT` · LOW | 0 security findings, quality 80/100 — not blocked |
 | 3 | README only | `COMMENT` | Guardrail caught invalid `risk_level: NONE`, safe fallback, no crash |
 
-Average end-to-end review time: ~45–60 seconds per PR (includes GitHub API round-trips).
+Average end-to-end review time: ~15–20 seconds per PR (includes GitHub API round-trips).
 
 Full benchmark data: [`benchmark/benchmark_results.json`](benchmark/benchmark_results.json)
 
