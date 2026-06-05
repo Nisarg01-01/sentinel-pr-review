@@ -1,10 +1,10 @@
 import os
 import json
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+from openai import AzureOpenAI
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from src.models import DriftReport, AgentTokenUsage
+from src.guardrails import parse_json_safe
 
 DRIFT_SYSTEM_PROMPT = """
 You are the Architecture Drift Agent for Sentinel.
@@ -53,14 +53,15 @@ def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
     return "\n\n".join(adr_texts), adr_names
 
 
-def run_drift_check(client: ChatCompletionsClient, pr_diff: str) -> tuple[DriftReport, AgentTokenUsage]:
+def run_drift_check(client: AzureOpenAI, pr_diff: str, model: str = None) -> tuple[DriftReport, AgentTokenUsage]:
     adr_content, adr_names = search_relevant_adrs(pr_diff)
 
-    response = client.complete(
-        model=os.environ["MODEL"],
+    response = client.chat.completions.create(
+        model=model or os.environ["MODEL"],
+        max_tokens=500,
         messages=[
-            SystemMessage(DRIFT_SYSTEM_PROMPT),
-            UserMessage(f"""
+            {"role": "system", "content": DRIFT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"""
 Check this pull request for architectural violations against our ADRs.
 
 ## Relevant ADRs
@@ -85,7 +86,7 @@ Return a JSON object with this exact structure:
     "summary": "Found 1 violation of ADR-001 secret management requirements",
     "adr_references": ["ADR-001-secrets.md"]
 }}
-"""),
+"""},
         ],
     )
 
@@ -101,4 +102,4 @@ Return a JSON object with this exact structure:
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
 
-    return DriftReport(**json.loads(text)), usage
+    return DriftReport(**parse_json_safe(text)), usage

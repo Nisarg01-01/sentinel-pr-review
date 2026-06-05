@@ -23,6 +23,16 @@ class Severity(str, Enum):
     INFO = "INFO"
 
 
+_SEVERITY_MAP = {
+    "SEVERE": "CRITICAL",
+    "FATAL": "CRITICAL",
+    "ERROR": "HIGH",
+    "WARNING": "MEDIUM",
+    "WARN": "MEDIUM",
+    "NOTE": "INFO",
+}
+
+
 class Finding(BaseModel):
     severity: Severity
     category: str = Field(description="e.g. 'Hardcoded Secret', 'SQL Injection', 'Missing Test'")
@@ -31,6 +41,13 @@ class Finding(BaseModel):
     title: str
     description: str
     recommendation: str
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def coerce_severity(cls, v):
+        if isinstance(v, str):
+            return _SEVERITY_MAP.get(v.upper(), v.upper())
+        return v
 
     @field_validator("line_number", mode="before")
     @classmethod

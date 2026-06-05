@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
-from azure.ai.inference import ChatCompletionsClient
-from azure.identity import DefaultAzureCredential
+from openai import AzureOpenAI
 from opentelemetry import trace
 
 from src.mcp_client import MCPClient
@@ -17,14 +16,13 @@ load_dotenv()
 tracer = setup_telemetry("sentinel")
 
 
-def build_inference_client() -> ChatCompletionsClient:
-    inference_endpoint = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0] + "/models"
-    return ChatCompletionsClient(
-        endpoint=inference_endpoint,
-        credential=DefaultAzureCredential(),
-        credential_scopes=["https://cognitiveservices.azure.com/.default"],
-        connection_timeout=30,
-        read_timeout=600,
+def build_inference_client() -> AzureOpenAI:
+    base = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0]
+    return AzureOpenAI(
+        azure_endpoint=base,
+        api_key=os.environ["AZURE_INFERENCE_KEY"],
+        api_version="2025-01-01-preview",
+        timeout=900,
     )
 
 
@@ -36,6 +34,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
 
     client = build_inference_client()
     gh = MCPClient()
+    model = os.environ.get("MODEL", "Phi-4-1")
 
     with tracer.start_as_current_span("sentinel.review") as root_span:
         root_span.set_attribute("pr.number", pr_number)
@@ -53,7 +52,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
 
         print("\nRunning Triage Agent...")
         with tracer.start_as_current_span("triage_agent") as span:
-            triage, triage_usage = run_triage(client, metadata, diff)
+            triage, triage_usage = run_triage(client, metadata, diff, model=model)
             span.set_attribute("triage.risk_level", triage.risk_level)
             span.set_attribute("triage.run_vuln", triage.should_run_vuln_scan)
             span.set_attribute("triage.run_drift", triage.should_run_drift_check)
@@ -69,7 +68,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         if triage.should_run_vuln_scan:
             print("\nRunning Vulnerability Agent...")
             with tracer.start_as_current_span("vuln_agent") as span:
-                vuln_report, vuln_usage = run_vuln_scan(client, diff, repo_name)
+                vuln_report, vuln_usage = run_vuln_scan(client, diff, repo_name, model=model)
                 span.set_attribute("vuln.findings", len(vuln_report.findings))
                 span.set_attribute("vuln.has_critical", vuln_report.has_critical)
                 span.set_attribute("tokens.prompt", vuln_usage.prompt_tokens)
@@ -85,7 +84,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         if triage.should_run_drift_check:
             print("\nRunning Drift Agent...")
             with tracer.start_as_current_span("drift_agent") as span:
-                drift_report, drift_usage = run_drift_check(client, diff)
+                drift_report, drift_usage = run_drift_check(client, diff, model=model)
                 span.set_attribute("drift.violations", len(drift_report.violations))
                 span.set_attribute("tokens.prompt", drift_usage.prompt_tokens)
                 span.set_attribute("tokens.completion", drift_usage.completion_tokens)
@@ -100,7 +99,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
         if triage.should_run_standards_check:
             print("\nRunning Standards Agent...")
             with tracer.start_as_current_span("standards_agent") as span:
-                quality_report, standards_usage = run_standards_check(client, diff)
+                quality_report, standards_usage = run_standards_check(client, diff, model=model)
                 span.set_attribute("standards.score", quality_report.score)
                 span.set_attribute("tokens.prompt", standards_usage.prompt_tokens)
                 span.set_attribute("tokens.completion", standards_usage.completion_tokens)

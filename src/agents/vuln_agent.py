@@ -1,9 +1,8 @@
 import os
 import json
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+from openai import AzureOpenAI
 from src.models import VulnReport, Finding, Severity, AgentTokenUsage
-from src.guardrails import sanitize_diff, validate_vuln_output
+from src.guardrails import sanitize_diff, validate_vuln_output, parse_json_safe
 
 VULN_SYSTEM_PROMPT = """
 You are the Vulnerability Agent for Sentinel, a security-focused code reviewer.
@@ -38,7 +37,7 @@ If there are no issues, return an empty findings list.
 Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
-def run_vuln_scan(client: ChatCompletionsClient, pr_diff: str, repo_name: str) -> tuple[VulnReport, AgentTokenUsage]:
+def run_vuln_scan(client: AzureOpenAI, pr_diff: str, repo_name: str, model: str = None) -> tuple[VulnReport, AgentTokenUsage]:
     sanitation = sanitize_diff(pr_diff)
     if sanitation.injection_detected:
         print(f"  [GUARDRAIL] Prompt injection detected in diff ({len(sanitation.flagged_lines)} line(s) redacted)")
@@ -46,11 +45,12 @@ def run_vuln_scan(client: ChatCompletionsClient, pr_diff: str, repo_name: str) -
             print(f"    Flagged: {line[:120]}")
     diff_to_use = sanitation.sanitized_diff
 
-    response = client.complete(
-        model=os.environ["MODEL"],
+    response = client.chat.completions.create(
+        model=model or os.environ["MODEL"],
+        max_tokens=500,
         messages=[
-            SystemMessage(VULN_SYSTEM_PROMPT),
-            UserMessage(f"""
+            {"role": "system", "content": VULN_SYSTEM_PROMPT},
+            {"role": "user", "content": f"""
 Scan this pull request diff for security vulnerabilities.
 
 Repository: {repo_name}
@@ -74,7 +74,7 @@ Return a JSON object with this exact structure:
     "summary": "Found 1 critical issue: hardcoded password",
     "has_critical": true
 }}
-"""),
+"""},
         ],
     )
 
@@ -104,7 +104,7 @@ Return a JSON object with this exact structure:
             recommendation="Manually review this PR — automated analysis may have been bypassed.",
         )
         try:
-            report = VulnReport(**json.loads(text))
+            report = VulnReport(**parse_json_safe(text))
             report.findings.append(guardrail_finding)
             report.has_critical = True
             return report, usage
@@ -115,4 +115,4 @@ Return a JSON object with this exact structure:
                 has_critical=True,
             ), usage
 
-    return VulnReport(**json.loads(text)), usage
+    return VulnReport(**parse_json_safe(text)), usage

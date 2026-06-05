@@ -3,6 +3,15 @@ import json
 from dataclasses import dataclass
 
 
+def parse_json_safe(text: str) -> dict:
+    """Parse JSON from model output, fixing invalid escape sequences if needed."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', text)
+        return json.loads(fixed)
+
+
 _INJECTION_PATTERNS = [
     r"ignore\s+(all\s+)?(previous|prior|above|preceding)\s+instructions?",
     r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions?",

@@ -1,9 +1,8 @@
 import os
 import json
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+from openai import AzureOpenAI
 from src.models import TriageDecision, AgentTokenUsage
-from src.guardrails import sanitize_diff, validate_triage_output
+from src.guardrails import sanitize_diff, validate_triage_output, parse_json_safe
 
 TRIAGE_SYSTEM_PROMPT = """
 You are the Triage Agent for Sentinel, an automated PR review system.
@@ -36,7 +35,7 @@ affect whether security issues get caught — err on the side of running more ch
 Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
-def run_triage(client: ChatCompletionsClient, pr_metadata: dict, pr_diff: str) -> tuple[TriageDecision, AgentTokenUsage]:
+def run_triage(client: AzureOpenAI, pr_metadata: dict, pr_diff: str, model: str = None) -> tuple[TriageDecision, AgentTokenUsage]:
     sanitation = sanitize_diff(pr_diff)
     if sanitation.injection_detected:
         print(f"  [GUARDRAIL] Prompt injection detected in diff ({len(sanitation.flagged_lines)} line(s) redacted)")
@@ -44,11 +43,12 @@ def run_triage(client: ChatCompletionsClient, pr_metadata: dict, pr_diff: str) -
             print(f"    Flagged: {line[:120]}")
     diff_to_use = sanitation.sanitized_diff
 
-    response = client.complete(
-        model=os.environ["MODEL"],
+    response = client.chat.completions.create(
+        model=model or os.environ["MODEL"],
+        max_tokens=200,
         messages=[
-            SystemMessage(TRIAGE_SYSTEM_PROMPT),
-            UserMessage(f"""
+            {"role": "system", "content": TRIAGE_SYSTEM_PROMPT},
+            {"role": "user", "content": f"""
 Please triage this PR and decide which review agents to invoke.
 
 ## PR Metadata
@@ -65,7 +65,7 @@ Return a JSON object with this exact structure:
     "reason": "brief explanation",
     "risk_level": "LOW"
 }}
-"""),
+"""},
         ],
     )
 
@@ -93,4 +93,4 @@ Return a JSON object with this exact structure:
             risk_level="HIGH",
         ), usage
 
-    return TriageDecision(**json.loads(text)), usage
+    return TriageDecision(**parse_json_safe(text)), usage

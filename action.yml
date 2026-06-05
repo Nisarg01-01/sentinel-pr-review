@@ -35,6 +35,9 @@ inputs:
   mcp-function-key:
     description: Azure Function host key for the MCP server
     required: true
+  azure-inference-key:
+    description: API key for the Azure AI Inference endpoint
+    required: true
 
 runs:
   using: composite
@@ -62,6 +65,7 @@ runs:
         AZURE_SEARCH_KEY: ${{ inputs.azure-search-key }}
         MCP_FUNCTION_URL: ${{ inputs.mcp-function-url }}
         MCP_FUNCTION_KEY: ${{ inputs.mcp-function-key }}
+        AZURE_INFERENCE_KEY: ${{ inputs.azure-inference-key }}
       run: |
         python -c "
         import sys

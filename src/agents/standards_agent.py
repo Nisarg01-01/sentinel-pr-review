@@ -1,8 +1,8 @@
 import os
 import json
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+from openai import AzureOpenAI
 from src.models import QualityReport, AgentTokenUsage
+from src.guardrails import parse_json_safe
 
 STANDARDS_SYSTEM_PROMPT = """
 You are the Standards Agent for Sentinel, a code quality reviewer.
@@ -13,29 +13,21 @@ What to check:
 1. TEST COVERAGE — are new functions/methods accompanied by tests?
 2. DOCSTRINGS — do public functions have docstrings explaining what they do?
 3. NAMING — are variables, functions, and classes named clearly?
-   Bad: x, temp, data, foo, helper
-   Good: user_email, process_payment, calculate_tax
 4. FUNCTION LENGTH — are functions doing too much? (>50 lines is a warning)
 5. ERROR HANDLING — are exceptions caught and handled appropriately?
-6. MAGIC NUMBERS — are unexplained numbers used directly in code?
 
-Score the PR 0-100:
-- 90-100: Excellent, nothing to flag
-- 70-89: Good with minor issues
-- 50-69: Acceptable but improvements needed
-- Below 50: Significant quality concerns
-
-Be constructive. Frame findings as helpful suggestions, not criticism.
+Score the PR 0-100. Report the top 3 most important findings only. Keep descriptions concise (one sentence each).
 
 Respond ONLY with a valid JSON object — no markdown, no explanation.
 """
 
-def run_standards_check(client: ChatCompletionsClient, pr_diff: str) -> tuple[QualityReport, AgentTokenUsage]:
-    response = client.complete(
-        model=os.environ["MODEL"],
+def run_standards_check(client: AzureOpenAI, pr_diff: str, model: str = None) -> tuple[QualityReport, AgentTokenUsage]:
+    response = client.chat.completions.create(
+        model=model or os.environ["MODEL"],
+        max_tokens=500,
         messages=[
-            SystemMessage(STANDARDS_SYSTEM_PROMPT),
-            UserMessage(f"""
+            {"role": "system", "content": STANDARDS_SYSTEM_PROMPT},
+            {"role": "user", "content": f"""
 Review this PR for code quality and standards compliance.
 
 ## PR Diff
@@ -58,7 +50,7 @@ Return a JSON object with this exact structure:
     "test_coverage_note": "0 tests added for 1 new line of code",
     "summary": "Score: 45/100. Code lacks tests and docstrings."
 }}
-"""),
+"""},
         ],
     )
 
@@ -74,4 +66,4 @@ Return a JSON object with this exact structure:
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
 
-    return QualityReport(**json.loads(text)), usage
+    return QualityReport(**parse_json_safe(text)), usage

@@ -24,7 +24,15 @@ The triage step skips agents that aren't relevant — a docs-only PR never runs 
 | **Standards** | Scores PR 0–100 on tests, naming, docstrings, error handling, function length | `QualityReport` — score + per-finding suggestions |
 | **Report** | Pure Python — merges all reports, determines verdict, formats GitHub comment | `FinalReview` — verdict + action checklist |
 
-Each agent is one `ChatCompletionsClient.complete()` call. The model returns JSON; Pydantic validates it before anything downstream uses it.
+Each agent is one `client.chat.completions.create()` call via the OpenAI-compatible Azure inference endpoint. The model returns JSON; Pydantic validates it before anything downstream uses it.
+
+---
+
+## Inference endpoint
+
+Sentinel uses the **OpenAI-compatible Azure inference endpoint** (`/openai/v1/`) with API key auth, not the older Azure AI model inference API (`/models`).
+
+Microsoft announced the retirement of the `/models` (Azure AI model inference) API on **26 August 2026** ([tracking ID: LPY7-MLZ](https://azure.microsoft.com/en-us/updates/)). The recommended migration is to the Chat Completions API — exactly the `/openai/v1/` endpoint Sentinel now uses. Phi-4 on Azure AI Foundry is fully OpenAI-API-compatible, so the `openai` Python SDK works without any model-specific changes.
 
 ---
 
@@ -32,7 +40,7 @@ Each agent is one `ChatCompletionsClient.complete()` call. The model returns JSO
 
 | Service | Role |
 |---|---|
-| Azure AI Foundry | Hosts Phi-4, serves inference endpoint |
+| Azure AI Foundry | Hosts Phi-4, serves inference via OpenAI-compatible `/openai/v1/` endpoint |
 | Azure AI Search | Stores ADR documents, retrieved per-diff via RAG |
 | Application Insights | Receives OpenTelemetry traces — per-agent tokens, findings, verdicts |
 | Azure Entra SP | CI identity used by GitHub Actions |
@@ -112,6 +120,7 @@ jobs:
       - uses: Nisarg01-01/sentinel-pr-review@master
         with:
           project-endpoint: ${{ secrets.AZURE_FOUNDRY_ENDPOINT }}
+          azure-inference-key: ${{ secrets.AZURE_INFERENCE_KEY }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -120,7 +129,7 @@ jobs:
           azure-search-key: ${{ secrets.AZURE_SEARCH_KEY }}
 ```
 
-Then add the 7 secrets under Settings → Secrets → Actions (see [Setup](#setup) for values). Every PR against `main`/`master` will get a Sentinel review — structured comment with verdict, findings, and inline comments on CRITICAL/HIGH lines.
+Then add the 8 secrets under Settings → Secrets → Actions (see [Setup](#setup) for values). Every PR against `main`/`master` will get a Sentinel review — structured comment with verdict, findings, and inline comments on CRITICAL/HIGH lines.
 
 > Requires your own Azure AI Foundry deployment (Phi-4) and Azure AI Search index with ADR documents.
 
@@ -151,6 +160,7 @@ Copy `.env.example` to `.env`:
 
 ```
 PROJECT_ENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project>
+AZURE_INFERENCE_KEY=<API key from Azure AI Foundry → Deployments → your model>
 MODEL=Phi-4-1
 GITHUB_TOKEN=<your PAT>
 GITHUB_REPO=<owner/repo>
@@ -173,6 +183,7 @@ Add repository secrets (Settings → Secrets → Actions):
 | Secret | Value |
 |---|---|
 | `AZURE_FOUNDRY_ENDPOINT` | `PROJECT_ENDPOINT` value |
+| `AZURE_INFERENCE_KEY` | API key from Azure AI Foundry → Deployments → your model |
 | `AZURE_CLIENT_ID` | Service principal app ID |
 | `AZURE_TENANT_ID` | Azure tenant ID |
 | `AZURE_CLIENT_SECRET` | Service principal password |
