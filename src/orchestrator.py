@@ -168,7 +168,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
     return {
         "pr_number": pr_number,
         "verdict": final_review.recommendation,
-        "severity": str(final_review.overall_severity),
+        "severity": final_review.overall_severity.value,
         "quality_score": final_review.quality_score,
         "vuln_count": len(vuln_report.findings),
         "drift_count": len(drift_report.violations),
