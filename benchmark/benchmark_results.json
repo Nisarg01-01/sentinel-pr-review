@@ -3,21 +3,21 @@
   "total_cases": 15,
   "true_positives": 10,
   "false_negatives": 0,
-  "true_negatives": 4,
-  "false_positives": 1,
+  "true_negatives": 5,
+  "false_positives": 0,
   "recall": 1.0,
-  "precision": 0.909,
-  "f1_score": 0.952,
-  "false_positive_rate": 0.2,
-  "avg_review_time_seconds": 2.5,
+  "precision": 1.0,
+  "f1_score": 1.0,
+  "false_positive_rate": 0.0,
+  "avg_review_time_seconds": 2.8,
   "avg_prompt_tokens": 605,
-  "avg_completion_tokens": 152,
-  "avg_total_tokens": 757,
+  "avg_completion_tokens": 146,
+  "avg_total_tokens": 751,
   "triage_accuracy": 0.8,
   "triage_correct": 4,
   "triage_total": 5,
   "triage_avg_prompt_tokens": 506,
-  "triage_avg_completion_tokens": 89,
+  "triage_avg_completion_tokens": 81,
   "cases": [
     {
       "id": "V01",
@@ -27,12 +27,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.9,
+      "elapsed": 2.0,
       "prompt_tokens": 597,
-      "completion_tokens": 172,
-      "total_tokens": 769,
+      "completion_tokens": 137,
+      "total_tokens": 734,
       "findings": [
-        "  [CRITICAL] SQL Injection via string concatenation in login query (introduction/views.py:158)"
+        "  [CRITICAL] SQL Injection via unsafe query construction (introduction/views.py:157)"
       ]
     },
     {
@@ -43,12 +43,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.3,
+      "elapsed": 1.6,
       "prompt_tokens": 593,
-      "completion_tokens": 158,
-      "total_tokens": 751,
+      "completion_tokens": 165,
+      "total_tokens": 758,
       "findings": [
-        "  [CRITICAL] SQL Injection Vulnerability in 'sql_lab' function (introduction/views.py:864)"
+        "  [CRITICAL] SQL Injection Risk due to Unsafe Query Construction (introduction/views.py:866)"
       ]
     },
     {
@@ -59,12 +59,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.5,
+      "elapsed": 1.9,
       "prompt_tokens": 600,
-      "completion_tokens": 181,
-      "total_tokens": 781,
+      "completion_tokens": 175,
+      "total_tokens": 775,
       "findings": [
-        "  [CRITICAL] Command Injection via unsanitized user input in subprocess call (introduction/views.py:422)"
+        "  [CRITICAL] Command Injection via unsanitized user input (introduction/views.py:421)"
       ]
     },
     {
@@ -75,12 +75,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.2,
+      "elapsed": 1.5,
       "prompt_tokens": 581,
-      "completion_tokens": 159,
-      "total_tokens": 740,
+      "completion_tokens": 151,
+      "total_tokens": 732,
       "findings": [
-        "  [CRITICAL] Use of eval() on untrusted user input (introduction/views.py:457)"
+        "  [CRITICAL] Use of eval() on unsanitized user input (introduction/views.py:458)"
       ]
     },
     {
@@ -91,13 +91,13 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 4.0,
+      "elapsed": 2.6,
       "prompt_tokens": 622,
-      "completion_tokens": 301,
-      "total_tokens": 923,
+      "completion_tokens": 339,
+      "total_tokens": 961,
       "findings": [
-        "  [CRITICAL] File path injection via user input in file write operation (introduction/views.py:992)",
-        "  [CRITICAL] Storing user supplied content directly without sanitization (introduction/views.py:993)"
+        "  [CRITICAL] File Path Injection via Unsanitized User Input (introduction/views.py:991)",
+        "  [CRITICAL] Arbitrary File Write from Unsanitized User Input (introduction/views.py:992)"
       ]
     },
     {
@@ -108,12 +108,12 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 5.8,
+      "elapsed": 3.0,
       "prompt_tokens": 620,
-      "completion_tokens": 260,
-      "total_tokens": 880,
+      "completion_tokens": 279,
+      "total_tokens": 899,
       "findings": [
-        "  [CRITICAL] Hardcoded SECRET_KEY in source code (pygoat/settings.py:24)",
+        "  [CRITICAL] Hardcoded secret key in source code (pygoat/settings.py:24)",
         "  [CRITICAL] Hardcoded sensitive data in source code (pygoat/settings.py:25)"
       ]
     },
@@ -125,12 +125,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 3.0,
+      "elapsed": 2.1,
       "prompt_tokens": 600,
       "completion_tokens": 168,
       "total_tokens": 768,
       "findings": [
-        "  [CRITICAL] Potential code injection via ImageMath.eval with user input (introduction/views.py:584)"
+        "  [CRITICAL] Potential code injection via unsanitized 'function' input in ImageMath.eval (introduction/views.py:583)"
       ]
     },
     {
@@ -141,12 +141,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.4,
+      "elapsed": 1.5,
       "prompt_tokens": 579,
-      "completion_tokens": 167,
-      "total_tokens": 746,
+      "completion_tokens": 209,
+      "total_tokens": 788,
       "findings": [
-        "  [CRITICAL] Command Injection via subprocess with unsanitized input (introduction/views.py:441)"
+        "  [CRITICAL] Command Injection via unsanitized input in subprocess call (introduction/views.py:441)"
       ]
     },
     {
@@ -157,10 +157,10 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.5,
+      "elapsed": 19.1,
       "prompt_tokens": 599,
-      "completion_tokens": 137,
-      "total_tokens": 736,
+      "completion_tokens": 135,
+      "total_tokens": 734,
       "findings": [
         "  [CRITICAL] Hardcoded password in source code (introduction/db.py:3)"
       ]
@@ -173,13 +173,13 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 3.8,
+      "elapsed": 3.2,
       "prompt_tokens": 601,
-      "completion_tokens": 282,
-      "total_tokens": 883,
+      "completion_tokens": 283,
+      "total_tokens": 884,
       "findings": [
-        "  [HIGH] Exposing user passwords via API response (introduction/views.py:2)",
-        "  [MEDIUM] Exposing potentially sensitive user profile data (introduction/views.py:6)"
+        "  [HIGH] Exposing passwords via JSON response (introduction/views.py:2)",
+        "  [HIGH] Lack of authentication and authorization checks (introduction/views.py:2)"
       ]
     },
     {
@@ -187,16 +187,14 @@
       "name": "Clean \u2014 parameterized SQL query",
       "cwe": "N/A",
       "is_vulnerable": false,
-      "correct": false,
-      "findings_count": 1,
-      "has_critical_or_high": true,
-      "elapsed": 2.6,
+      "correct": true,
+      "findings_count": 0,
+      "has_critical_or_high": false,
+      "elapsed": 0.6,
       "prompt_tokens": 576,
-      "completion_tokens": 185,
-      "total_tokens": 761,
-      "findings": [
-        "  [HIGH] Potential SQL Injection via Unsafe Query Execution (introduction/views.py:2)"
-      ]
+      "completion_tokens": 27,
+      "total_tokens": 603,
+      "findings": []
     },
     {
       "id": "C02",
@@ -206,10 +204,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.7,
+      "elapsed": 0.8,
       "prompt_tokens": 612,
-      "completion_tokens": 27,
-      "total_tokens": 639,
+      "completion_tokens": 30,
+      "total_tokens": 642,
       "findings": []
     },
     {
@@ -220,7 +218,7 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.8,
+      "elapsed": 0.7,
       "prompt_tokens": 582,
       "completion_tokens": 26,
       "total_tokens": 608,
@@ -234,10 +232,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.9,
+      "elapsed": 1.0,
       "prompt_tokens": 638,
-      "completion_tokens": 27,
-      "total_tokens": 665,
+      "completion_tokens": 31,
+      "total_tokens": 669,
       "findings": []
     },
     {
@@ -248,10 +246,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.8,
+      "elapsed": 0.6,
       "prompt_tokens": 678,
-      "completion_tokens": 27,
-      "total_tokens": 705,
+      "completion_tokens": 30,
+      "total_tokens": 708,
       "findings": []
     }
   ]

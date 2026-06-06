@@ -5,9 +5,102 @@ from github import Github, GithubException
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
+TOOLS = [
+    {
+        "name": "get_pr_diff",
+        "description": "Get the full diff for a pull request, file by file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string", "description": "owner/repo"},
+                "pr_number": {"type": "integer"},
+            },
+            "required": ["repo", "pr_number"],
+        },
+    },
+    {
+        "name": "get_pr_metadata",
+        "description": "Get PR title, author, branch names, changed files, additions/deletions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "pr_number": {"type": "integer"},
+            },
+            "required": ["repo", "pr_number"],
+        },
+    },
+    {
+        "name": "get_file_content",
+        "description": "Get the full content of a file at the PR head commit.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "pr_number": {"type": "integer"},
+                "path": {"type": "string"},
+            },
+            "required": ["repo", "pr_number", "path"],
+        },
+    },
+    {
+        "name": "post_review_comment",
+        "description": "Post a review on a PR — APPROVE, REQUEST_CHANGES, or COMMENT.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "pr_number": {"type": "integer"},
+                "body": {"type": "string"},
+                "event": {"type": "string", "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"]},
+            },
+            "required": ["repo", "pr_number", "body"],
+        },
+    },
+    {
+        "name": "post_inline_comment",
+        "description": "Post a review comment at a specific line in a specific file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "pr_number": {"type": "integer"},
+                "path": {"type": "string"},
+                "line": {"type": "integer"},
+                "body": {"type": "string"},
+            },
+            "required": ["repo", "pr_number", "path", "line", "body"],
+        },
+    },
+]
 
-def _github_client():
+
+def _github_client() -> Github:
     return Github(os.environ["GITHUB_TOKEN"])
+
+
+def _json_response(data: dict, status: int = 200) -> func.HttpResponse:
+    return func.HttpResponse(
+        json.dumps(data),
+        status_code=status,
+        mimetype="application/json",
+    )
+
+
+def _mcp_error(req_id, code: int, message: str) -> func.HttpResponse:
+    return _json_response({
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "error": {"code": code, "message": message},
+    })
+
+
+def _mcp_result(req_id, result: dict) -> func.HttpResponse:
+    return _json_response({
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "result": result,
+    })
 
 
 @app.route(route="mcp", methods=["POST"])
@@ -15,78 +108,61 @@ def mcp_server(req: func.HttpRequest) -> func.HttpResponse:
     try:
         body = req.get_json()
     except ValueError:
-        return _error("Invalid JSON body", 400)
+        return _json_response({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}, 400)
 
-    tool = body.get("tool")
+    req_id = body.get("id")
+    method = body.get("method")
     params = body.get("params", {})
 
+    # MCP handshake
+    if method == "initialize":
+        return _mcp_result(req_id, {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "sentinel-mcp", "version": "1.0.0"},
+        })
+
+    if method == "notifications/initialized":
+        return _json_response({}, 200)
+
+    if method == "tools/list":
+        return _mcp_result(req_id, {"tools": TOOLS})
+
+    if method == "tools/call":
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+        try:
+            result = _dispatch(tool_name, arguments)
+            return _mcp_result(req_id, {
+                "content": [{"type": "text", "text": json.dumps(result)}],
+                "isError": False,
+            })
+        except KeyError as e:
+            return _mcp_error(req_id, -32602, f"Missing required argument: {e}")
+        except GithubException as e:
+            return _mcp_error(req_id, -32603, f"GitHub API error: {e.data.get('message', str(e))}")
+        except Exception as e:
+            return _mcp_error(req_id, -32603, str(e))
+
+    return _mcp_error(req_id, -32601, f"Method not found: {method}")
+
+
+def _dispatch(tool_name: str, args: dict):
     handlers = {
-        "list_tools": _list_tools,
         "get_pr_diff": _get_pr_diff,
         "get_pr_metadata": _get_pr_metadata,
         "get_file_content": _get_file_content,
         "post_review_comment": _post_review_comment,
         "post_inline_comment": _post_inline_comment,
     }
-
-    if tool not in handlers:
-        return _error(f"Unknown tool: {tool}. Call list_tools to see available tools.", 400)
-
-    try:
-        result = handlers[tool](params)
-        return func.HttpResponse(
-            json.dumps({"result": result}),
-            mimetype="application/json",
-        )
-    except KeyError as e:
-        return _error(f"Missing required parameter: {e}", 400)
-    except GithubException as e:
-        return _error(f"GitHub API error: {e.data.get('message', str(e))}", e.status)
-    except Exception as e:
-        return _error(str(e), 500)
+    if tool_name not in handlers:
+        raise ValueError(f"Unknown tool: {tool_name}")
+    return handlers[tool_name](args)
 
 
-def _error(message: str, status: int) -> func.HttpResponse:
-    return func.HttpResponse(
-        json.dumps({"error": message}),
-        status_code=status,
-        mimetype="application/json",
-    )
-
-
-def _list_tools(params: dict) -> list:
-    return [
-        {
-            "name": "get_pr_diff",
-            "description": "Get the full diff for a pull request, file by file",
-            "params": {"repo": "owner/repo", "pr_number": "integer"},
-        },
-        {
-            "name": "get_pr_metadata",
-            "description": "Get PR title, author, branch names, changed files, additions/deletions",
-            "params": {"repo": "owner/repo", "pr_number": "integer"},
-        },
-        {
-            "name": "get_file_content",
-            "description": "Get the full content of a file at the PR head commit",
-            "params": {"repo": "owner/repo", "pr_number": "integer", "path": "file path"},
-        },
-        {
-            "name": "post_review_comment",
-            "description": "Post a review on a PR — APPROVE, REQUEST_CHANGES, or COMMENT",
-            "params": {"repo": "owner/repo", "pr_number": "integer", "body": "markdown string", "event": "APPROVE|REQUEST_CHANGES|COMMENT"},
-        },
-        {
-            "name": "post_inline_comment",
-            "description": "Post a review comment at a specific line in a specific file",
-            "params": {"repo": "owner/repo", "pr_number": "integer", "path": "file path", "line": "integer", "body": "string"},
-        },
-    ]
-
-
-def _get_pr_diff(params: dict) -> dict:
-    repo = _github_client().get_repo(params["repo"])
-    pr = repo.get_pull(int(params["pr_number"]))
+def _get_pr_diff(args: dict) -> dict:
+    gh_repo = _github_client().get_repo(args["repo"])
+    pr = gh_repo.get_pull(int(args["pr_number"]))
 
     files = []
     for f in pr.get_files():
@@ -107,9 +183,9 @@ def _get_pr_diff(params: dict) -> dict:
     }
 
 
-def _get_pr_metadata(params: dict) -> dict:
-    repo = _github_client().get_repo(params["repo"])
-    pr = repo.get_pull(int(params["pr_number"]))
+def _get_pr_metadata(args: dict) -> dict:
+    gh_repo = _github_client().get_repo(args["repo"])
+    pr = gh_repo.get_pull(int(args["pr_number"]))
     files = list(pr.get_files())
 
     return {
@@ -126,31 +202,31 @@ def _get_pr_metadata(params: dict) -> dict:
     }
 
 
-def _get_file_content(params: dict) -> dict:
-    repo = _github_client().get_repo(params["repo"])
-    pr = repo.get_pull(int(params["pr_number"]))
+def _get_file_content(args: dict) -> dict:
+    gh_repo = _github_client().get_repo(args["repo"])
+    pr = gh_repo.get_pull(int(args["pr_number"]))
 
     try:
-        content = repo.get_contents(params["path"], ref=pr.head.sha)
+        content = gh_repo.get_contents(args["path"], ref=pr.head.sha)
         return {
-            "path": params["path"],
+            "path": args["path"],
             "content": content.decoded_content.decode("utf-8"),
             "size": content.size,
         }
     except GithubException as e:
-        return {"path": params["path"], "error": f"Could not retrieve file: {e.data.get('message', str(e))}"}
+        return {"path": args["path"], "error": f"Could not retrieve file: {e.data.get('message', str(e))}"}
 
 
-def _post_review_comment(params: dict) -> dict:
-    repo = _github_client().get_repo(params["repo"])
-    pr = repo.get_pull(int(params["pr_number"]))
-    event = params.get("event", "COMMENT")
+def _post_review_comment(args: dict) -> dict:
+    gh_repo = _github_client().get_repo(args["repo"])
+    pr = gh_repo.get_pull(int(args["pr_number"]))
+    event = args.get("event", "COMMENT")
 
     try:
-        pr.create_review(body=params["body"], event=event)
+        pr.create_review(body=args["body"], event=event)
     except GithubException as e:
         if e.status == 422:
-            pr.create_review(body=params["body"], event="COMMENT")
+            pr.create_review(body=args["body"], event="COMMENT")
             event = "COMMENT (fallback)"
         else:
             raise
@@ -158,19 +234,19 @@ def _post_review_comment(params: dict) -> dict:
     return {"posted": True, "event": event, "pr_number": pr.number}
 
 
-def _post_inline_comment(params: dict) -> dict:
-    repo = _github_client().get_repo(params["repo"])
-    pr = repo.get_pull(int(params["pr_number"]))
-    commit = repo.get_commit(pr.head.sha)
+def _post_inline_comment(args: dict) -> dict:
+    gh_repo = _github_client().get_repo(args["repo"])
+    pr = gh_repo.get_pull(int(args["pr_number"]))
+    commit = gh_repo.get_commit(pr.head.sha)
 
     try:
         pr.create_review_comment(
-            body=params["body"],
+            body=args["body"],
             commit=commit,
-            path=params["path"],
-            line=int(params["line"]),
+            path=args["path"],
+            line=int(args["line"]),
         )
-        return {"posted": True, "path": params["path"], "line": params["line"]}
+        return {"posted": True, "path": args["path"], "line": args["line"]}
     except GithubException:
-        pr.create_issue_comment(f"**{params['path']}:{params['line']}** — {params['body']}")
-        return {"posted": True, "fallback": True, "path": params["path"], "line": params["line"]}
+        pr.create_issue_comment(f"**{args['path']}:{args['line']}** — {args['body']}")
+        return {"posted": True, "fallback": True, "path": args["path"], "line": args["line"]}

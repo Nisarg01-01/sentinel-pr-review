@@ -26,6 +26,8 @@ The triage step skips agents that aren't relevant — a docs-only PR never runs 
 
 Each agent is one `client.chat.completions.create()` call via the OpenAI-compatible Azure inference endpoint. The model returns JSON; Pydantic validates it before anything downstream uses it.
 
+The GitHub API layer is a proper **MCP (Model Context Protocol) server** — an Azure Function that exposes GitHub tools over the MCP Streamable HTTP transport (spec 2025-03-26). Any MCP-compliant client (Claude Desktop, Cursor, custom SDK code) can connect to it directly to call `get_pr_diff`, `get_pr_metadata`, `get_file_content`, `post_review_comment`, and `post_inline_comment`.
+
 ---
 
 ## Inference endpoint
@@ -33,6 +35,24 @@ Each agent is one `client.chat.completions.create()` call via the OpenAI-compati
 Sentinel uses the **OpenAI-compatible Azure inference endpoint** (`/openai/v1/`) with API key auth, not the older Azure AI model inference API (`/models`).
 
 Microsoft announced the retirement of the `/models` (Azure AI model inference) API on **26 August 2026** ([tracking ID: LPY7-MLZ](https://azure.microsoft.com/en-us/updates/)). The recommended migration is to the Chat Completions API — exactly the `/openai/v1/` endpoint Sentinel now uses. Phi-4 on Azure AI Foundry is fully OpenAI-API-compatible, so the `openai` Python SDK works without any model-specific changes.
+
+---
+
+## MCP server
+
+The GitHub tool layer (`mcp_server/`) is an Azure Function that implements the **Model Context Protocol** using the MCP Python SDK (`FastMCP`). It exposes five tools over the [Streamable HTTP transport](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/transports/#streamable-http) — one stateless POST per tool call, no persistent SSE session needed for request/response tools.
+
+| Tool | What it does |
+|---|---|
+| `get_pr_diff` | Returns the full file-by-file diff for a PR |
+| `get_pr_metadata` | Returns title, author, branches, changed files, additions/deletions |
+| `get_file_content` | Returns the full file content at the PR head commit |
+| `post_review_comment` | Posts an APPROVE / REQUEST_CHANGES / COMMENT review |
+| `post_inline_comment` | Posts a line-level comment on a specific file |
+
+Because it's MCP-compliant, any MCP client can connect to it — not just Sentinel. You could point Claude Desktop or Cursor at the same Azure Function URL and call these tools interactively.
+
+The client side (`src/mcp_client.py`) sends JSON-RPC 2.0 requests (`method: tools/call`) to the Azure Function. Previously this was a custom `{"tool": ..., "params": ...}` HTTP protocol — switching to MCP JSON-RPC is what makes it interoperable with the broader MCP ecosystem.
 
 ---
 
@@ -257,6 +277,9 @@ sentinel-pr-review/
 ├── benchmark/
 │   ├── run_benchmark.py       precision/recall/F1 evaluation
 │   └── benchmark_results.json
+├── mcp_server/
+│   ├── function_app.py        MCP server (FastMCP + Azure Functions ASGI)
+│   └── requirements.txt
 ├── setup_search.py
 ├── action.yml                 reusable GitHub Actions composite action
 └── .github/workflows/
