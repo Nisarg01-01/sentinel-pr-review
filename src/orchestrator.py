@@ -34,7 +34,7 @@ def run_sentinel(pr_number: int, repo_name: str = None, dry_run: bool = False) -
 
     client = build_inference_client()
     gh = MCPClient()
-    model = os.environ.get("MODEL", "Phi-4-1")
+    model = os.environ.get("MODEL", "gpt-4.1-mini")
 
     with tracer.start_as_current_span("sentinel.review") as root_span:
         root_span.set_attribute("pr.number", pr_number)

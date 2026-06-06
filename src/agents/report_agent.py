@@ -133,5 +133,5 @@ def format_findings_for_github(review: FinalReview) -> str:
             lines.append(f"- [ ] {item}")
         lines.append("")
 
-    lines += ["---", "*Sentinel v1.0 — Automated review powered by Azure AI Foundry + Phi-4*"]
+    lines += ["---", "*Sentinel v1.0 — Automated review powered by Azure AI Foundry + gpt-4.1-mini*"]
     return "\n".join(lines)
