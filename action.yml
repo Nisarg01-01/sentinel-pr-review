@@ -1,5 +1,5 @@
 name: Sentinel PR Review
-description: Multi-agent AI security, architecture, and quality review for pull requests — powered by Azure AI Foundry and Phi-4.
+description: Multi-agent AI security, architecture, and quality review for pull requests — powered by Azure AI Foundry and gpt-4.1-mini.
 author: Nisarg Shah
 
 inputs:
@@ -9,7 +9,7 @@ inputs:
   model:
     description: Deployed model name
     required: false
-    default: Phi-4-1
+    default: gpt-4.1-mini
   azure-client-id:
     description: Azure service principal client ID
     required: true
