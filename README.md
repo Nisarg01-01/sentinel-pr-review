@@ -26,6 +26,8 @@ The GitHub API layer is a separate Azure Function that implements the [MCP (Mode
 
 ### Benchmark — 15 cases from OWASP PyGoat
 
+Model: gpt-4.1-mini, selected after benchmarking against Phi-4-1 and Phi-4-mini-instruct on the same 15 cases.
+
 | Metric | Result |
 |---|---|
 | Recall | 100% — 10/10 vulnerable cases caught |
