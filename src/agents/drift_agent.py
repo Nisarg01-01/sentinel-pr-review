@@ -25,9 +25,19 @@ If no ADRs are violated, return an empty violations list.
 
 Respond ONLY with a valid JSON object — no markdown, no explanation:
 {
-    "violations": [...],
+    "violations": [
+        {
+            "severity": "HIGH",
+            "category": "Architecture",
+            "file_path": "path/to/file.py",
+            "line_number": 42,
+            "title": "Short title of the violation",
+            "description": "What the violation is and which ADR it breaks",
+            "recommendation": "How to fix it"
+        }
+    ],
     "summary": "...",
-    "adr_references": []
+    "adr_references": ["ADR-001", "ADR-002"]
 }
 """
 
