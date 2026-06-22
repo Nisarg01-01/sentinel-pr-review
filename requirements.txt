@@ -1,5 +1,6 @@
 openai>=1.0.0
 azure-search-documents
+azure-data-tables
 azure-keyvault-secrets
 azure-identity
 azure-monitor-opentelemetry

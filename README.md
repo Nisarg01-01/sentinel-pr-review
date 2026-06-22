@@ -1,51 +1,54 @@
 # Sentinel
 
-Automated PR security reviewer. When a pull request opens, Sentinel fetches the diff, routes it through specialist agents, and posts a structured review — flagging hardcoded secrets, SQL injection, architecture violations, and code quality issues before they get merged.
+Automated PR security reviewer. When a pull request opens, Sentinel fetches the diff, routes it through specialist agents, and posts a structured review flagging hardcoded secrets, SQL injection, architecture violations, and code quality issues before they get merged.
 
 ---
 
 ## How it works
 
-The triage agent reads the diff and decides which specialist agents to run. A docs-only PR skips the vulnerability scan entirely. Each specialist agent makes one LLM call and returns structured JSON. The report agent merges all results and posts a GitHub review.
+The triage agent fetches the PR diff and metadata via MCP tools, decides which specialist agents to run, and skips agents that are not relevant. A docs-only PR skips the vulnerability scan entirely. Each specialist agent runs a ReAct loop - it reasons about what it sees, calls tools to fetch additional context when needed, and returns structured findings. The report agent reasons over all findings and writes a coherent GitHub review comment.
 
-Guardrails run on both sides: `sanitize_diff()` strips prompt injection patterns before the diff reaches any agent, and `validate_output()` checks responses for logical inconsistencies — zero findings on a diff containing a hardcoded secret triggers a safe fallback instead of silently passing.
+Guardrails run on both sides: `sanitize_diff()` strips prompt injection patterns before the diff reaches any agent, and `validate_output()` checks responses for logical inconsistencies. Zero findings on a diff containing a hardcoded secret triggers a safe fallback instead of silently passing.
 
 | Agent | What it does |
 |---|---|
-| Triage | Reads diff + metadata, decides which agents to run |
-| Vulnerability | Scans for hardcoded secrets, SQL/command injection, insecure deps, missing auth |
-| Drift | Retrieves relevant ADRs from Azure AI Search, checks diff for violations |
-| Standards | Scores PR 0–100 on tests, naming, docstrings, error handling |
-| Report | Pure Python — merges all reports, determines verdict, formats GitHub comment |
+| Triage | Fetches PR context via MCP tools, decides which agents to run |
+| Vulnerability | Scans for hardcoded secrets, SQL/command injection, insecure deps, missing auth. Calls `get_file_content` when it needs full file context to confirm a finding |
+| Drift | Searches ADRs dynamically based on what it sees in the diff, checks for violations |
+| Standards | Scores PR 0-100 on tests, naming, docstrings, error handling. Fetches full files when diff context is insufficient |
+| Report | LLM call that reasons over all findings and writes a narrative GitHub review comment |
 
-The GitHub API layer is a separate Azure Function that implements the [MCP (Model Context Protocol)](https://spec.modelcontextprotocol.io/specification/2025-03-26/) over JSON-RPC 2.0. Any MCP-compliant client — Claude Desktop, Cursor, or custom code — can connect to it and call `get_pr_diff`, `get_pr_metadata`, `get_file_content`, `post_review_comment`, and `post_inline_comment`.
+The GitHub API layer is a separate Azure Function implementing the [MCP (Model Context Protocol)](https://spec.modelcontextprotocol.io/specification/2025-03-26/) over JSON-RPC 2.0. Any MCP-compliant client can connect to it and call `get_pr_diff`, `get_pr_metadata`, `get_file_content`, `post_review_comment`, and `post_inline_comment`.
 
 ---
 
 ## Results
 
-### Benchmark — 15 cases from OWASP PyGoat
+### Benchmark
 
-Model: gpt-4.1-mini, selected after benchmarking against Phi-4-1 and Phi-4-mini-instruct on the same 15 cases.
+23 cases: 15 vulnerable patterns across 7 CWE categories + 8 clean cases including adversarial patterns (Django ORM queries, placeholder keys, large noisy diffs with one hidden vulnerability).
+
+Vuln agent uses gpt-4.1, triage and standards use gpt-4.1-mini.
 
 | Metric | Result |
 |---|---|
-| Recall | 100% — 10/10 vulnerable cases caught |
-| Precision | 91% — 10/11 flags were true positives |
-| F1 Score | 0.95 |
-| False positive rate | 20% (1/5 clean cases) |
-| Triage routing accuracy | 80% — 4/5 routing decisions correct |
-| Avg review time | 2.5s per case |
+| Recall | 100% - 15/15 vulnerable cases caught |
+| Precision | 94% - 1 false positive on a realistic-looking placeholder key |
+| F1 Score | 0.97 |
+| Triage routing accuracy | 100% - 4/4 real PRs including docs-only case |
+| Avg review time | 1.8s per case |
 
 CWEs covered: SQL injection (CWE-89), command injection (CWE-78), eval injection (CWE-95), path traversal (CWE-22), hardcoded secrets (CWE-798), bare except (CWE-390), missing auth (CWE-306).
 
-### Live test — OWASP PyGoat on GitHub Actions
+The one false positive was a config template with realistically-formatted placeholder keys (SendGrid API key format). Conservative behavior - a tool that flags realistic-looking placeholders is safer than one that lets them through.
+
+### Live test on OWASP PyGoat
 
 | PR | Change | Verdict |
 |---|---|---|
-| 1 | SQL injection in `views.py:159` | `REQUEST_CHANGES` · CRITICAL — exact line flagged, ADR-002 + ADR-003 cited |
-| 2 | Clean utility functions | `COMMENT` · LOW — 0 security findings, quality 80/100 |
-| 3 | README only | `COMMENT` — guardrail caught invalid triage output, safe fallback |
+| 1 | SQL injection in `views.py:159` | `REQUEST_CHANGES` CRITICAL - exact line flagged, ADR-002 + ADR-003 cited |
+| 2 | Clean utility functions | `COMMENT` LOW - 0 security findings, quality 80/100 |
+| 3 | README only | `COMMENT` - guardrail caught invalid triage output, safe fallback |
 
 ---
 
@@ -77,7 +80,7 @@ jobs:
           azure-search-key: ${{ secrets.AZURE_SEARCH_KEY }}
 ```
 
-Add the 8 secrets under Settings → Secrets → Actions (see [Setup](#setup) for values).
+Add the 8 secrets under Settings -> Secrets -> Actions (see [Setup](#setup) for values).
 
 ---
 
@@ -86,9 +89,10 @@ Add the 8 secrets under Settings → Secrets → Actions (see [Setup](#setup) fo
 ### Prerequisites
 
 - Python 3.11+
-- Azure AI Foundry with a deployed `gpt-4.1-mini` model
+- Azure AI Foundry with deployed `gpt-4.1` and `gpt-4.1-mini` models
 - GitHub fine-grained PAT (pull-requests: read/write, contents: read)
 - Azure AI Search service with an index named `sentinel-adrs`
+- Azure Storage account (for finding memory across PRs)
 
 ### Local
 
@@ -105,13 +109,18 @@ Copy `.env.example` to `.env`:
 
 ```
 PROJECT_ENDPOINT=https://<resource>.services.ai.azure.com/api/projects/<project>
-AZURE_INFERENCE_KEY=<API key from Azure AI Foundry → Deployments → your model>
+AZURE_INFERENCE_KEY=<API key from Azure AI Foundry>
 MODEL=gpt-4.1-mini
+VULN_MODEL=gpt-4.1
+REPORT_MODEL=gpt-4.1
 GITHUB_TOKEN=<your PAT>
 GITHUB_REPO=<owner/repo>
 AZURE_SEARCH_ENDPOINT=https://<service>.search.windows.net
 AZURE_SEARCH_INDEX=sentinel-adrs
 AZURE_SEARCH_KEY=<admin key>
+MCP_FUNCTION_URL=<Azure Function URL>
+MCP_FUNCTION_KEY=<Azure Function host key>
+AZURE_STORAGE_CONNECTION_STRING=<Azure Storage connection string>
 APPLICATIONINSIGHTS_CONNECTION_STRING=<optional>
 ```
 
@@ -123,12 +132,12 @@ python -m src.orchestrator 1             # post review to PR #1
 
 ### GitHub Actions
 
-Add repository secrets under Settings → Secrets → Actions:
+Add repository secrets under Settings -> Secrets -> Actions:
 
 | Secret | Value |
 |---|---|
 | `AZURE_FOUNDRY_ENDPOINT` | `PROJECT_ENDPOINT` value |
-| `AZURE_INFERENCE_KEY` | API key from Azure AI Foundry → Deployments → your model |
+| `AZURE_INFERENCE_KEY` | API key from Azure AI Foundry |
 | `AZURE_CLIENT_ID` | Service principal app ID |
 | `AZURE_TENANT_ID` | Azure tenant ID |
 | `AZURE_CLIENT_SECRET` | Service principal password |
@@ -150,10 +159,10 @@ az ad sp create-for-rbac \
 ## Tests
 
 ```bash
-# Unit tests — no LLM calls (~8s)
+# Unit tests - no LLM calls (~8s)
 conda run -n sentinel pytest tests/test_guardrails.py -v
 
-# Integration tests — calls gpt-4.1-mini (~90s)
+# Integration tests - calls gpt-4.1-mini (~90s)
 conda run -n sentinel pytest tests/test_eval.py -v
 
 # Full suite
@@ -167,24 +176,24 @@ conda run -n sentinel pytest -v
 ```
 sentinel-pr-review/
 ├── src/
-│   ├── orchestrator.py        entry point — wires all agents
+│   ├── orchestrator.py        entry point - wires all agents
 │   ├── guardrails.py          prompt injection sanitization + output validation
-│   ├── telemetry.py           OpenTelemetry → Application Insights
+│   ├── telemetry.py           OpenTelemetry -> Application Insights
 │   ├── models.py              Pydantic models for all agent I/O
-│   ├── mcp_client.py          MCP JSON-RPC 2.0 client for the Azure Function
+│   ├── mcp_client.py          MCP JSON-RPC 2.0 client + finding memory layer
 │   └── agents/
-│       ├── triage_agent.py
-│       ├── vuln_agent.py
-│       ├── drift_agent.py
-│       ├── standards_agent.py
-│       └── report_agent.py
+│       ├── triage_agent.py    ReAct agent - fetches own context via MCP
+│       ├── vuln_agent.py      ReAct agent - calls get_file_content when needed
+│       ├── drift_agent.py     ReAct agent - constructs own ADR search queries
+│       ├── standards_agent.py ReAct agent - fetches full files for quality scoring
+│       └── report_agent.py    LLM narrative generation
 ├── tests/
 │   ├── test_eval.py           integration tests against real model
 │   ├── test_guardrails.py     guardrail unit tests
 │   └── fixtures/              synthetic .diff files
 ├── adr_documents/             ADR markdown files uploaded to Azure AI Search
 ├── benchmark/
-│   ├── run_benchmark.py       precision/recall/F1 evaluation
+│   ├── run_benchmark.py       precision/recall/F1 evaluation (23 cases)
 │   └── benchmark_results.json
 ├── mcp_server/
 │   ├── function_app.py        MCP server (JSON-RPC 2.0 over Azure Functions HTTP trigger)

@@ -184,7 +184,7 @@ class TestGuardrailIntegration:
         assert sanitation.injection_detected is True
 
         from src.agents.vuln_agent import run_vuln_scan
-        report = run_vuln_scan(client, diff, "test/repo")
+        report, _ = run_vuln_scan(client, diff, "test/repo")
 
         assert len(report.findings) >= 1, (
             f"Vuln agent should still find secrets after sanitizing injection lines. "
@@ -194,11 +194,11 @@ class TestGuardrailIntegration:
 
 @pytest.fixture(scope="session")
 def client():
-    from azure.ai.inference import ChatCompletionsClient
-    from azure.identity import DefaultAzureCredential
-    inference_endpoint = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0] + "/models"
-    return ChatCompletionsClient(
-        endpoint=inference_endpoint,
-        credential=DefaultAzureCredential(),
-        credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    from openai import AzureOpenAI
+    base = os.environ["PROJECT_ENDPOINT"].split("/api/projects")[0]
+    return AzureOpenAI(
+        azure_endpoint=base,
+        api_key=os.environ["AZURE_INFERENCE_KEY"],
+        api_version="2025-01-01-preview",
+        timeout=900,
     )

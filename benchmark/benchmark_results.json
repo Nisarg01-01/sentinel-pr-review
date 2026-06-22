@@ -1,23 +1,23 @@
 {
   "model": "gpt-4.1-mini",
-  "total_cases": 15,
-  "true_positives": 10,
+  "total_cases": 23,
+  "true_positives": 15,
   "false_negatives": 0,
-  "true_negatives": 5,
-  "false_positives": 0,
+  "true_negatives": 7,
+  "false_positives": 1,
   "recall": 1.0,
-  "precision": 1.0,
-  "f1_score": 1.0,
-  "false_positive_rate": 0.0,
-  "avg_review_time_seconds": 2.8,
-  "avg_prompt_tokens": 605,
-  "avg_completion_tokens": 146,
-  "avg_total_tokens": 751,
-  "triage_accuracy": 0.8,
-  "triage_correct": 4,
-  "triage_total": 5,
-  "triage_avg_prompt_tokens": 506,
-  "triage_avg_completion_tokens": 81,
+  "precision": 0.938,
+  "f1_score": 0.968,
+  "false_positive_rate": 0.125,
+  "avg_review_time_seconds": 1.8,
+  "avg_prompt_tokens": 1134,
+  "avg_completion_tokens": 172,
+  "avg_total_tokens": 1306,
+  "triage_accuracy": 1.0,
+  "triage_correct": 3,
+  "triage_total": 3,
+  "triage_avg_prompt_tokens": 1084,
+  "triage_avg_completion_tokens": 131,
   "cases": [
     {
       "id": "V01",
@@ -27,12 +27,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.0,
-      "prompt_tokens": 597,
-      "completion_tokens": 137,
-      "total_tokens": 734,
+      "elapsed": 2.2,
+      "prompt_tokens": 1431,
+      "completion_tokens": 193,
+      "total_tokens": 1624,
       "findings": [
-        "  [CRITICAL] SQL Injection via unsafe query construction (introduction/views.py:157)"
+        "  [CRITICAL] SQL Injection Vulnerability in login function (introduction/views.py:158)"
       ]
     },
     {
@@ -43,12 +43,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 1.6,
-      "prompt_tokens": 593,
-      "completion_tokens": 165,
-      "total_tokens": 758,
+      "elapsed": 1.7,
+      "prompt_tokens": 1423,
+      "completion_tokens": 171,
+      "total_tokens": 1594,
       "findings": [
-        "  [CRITICAL] SQL Injection Risk due to Unsafe Query Construction (introduction/views.py:866)"
+        "  [CRITICAL] SQL Injection vulnerability in sql_lab view (introduction/views.py:866)"
       ]
     },
     {
@@ -59,12 +59,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 1.9,
-      "prompt_tokens": 600,
-      "completion_tokens": 175,
-      "total_tokens": 775,
+      "elapsed": 2.1,
+      "prompt_tokens": 1437,
+      "completion_tokens": 201,
+      "total_tokens": 1638,
       "findings": [
-        "  [CRITICAL] Command Injection via unsanitized user input (introduction/views.py:421)"
+        "  [CRITICAL] Command Injection vulnerability via user input (introduction/views.py:423)"
       ]
     },
     {
@@ -75,12 +75,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 1.5,
-      "prompt_tokens": 581,
-      "completion_tokens": 151,
-      "total_tokens": 732,
+      "elapsed": 1.6,
+      "prompt_tokens": 676,
+      "completion_tokens": 194,
+      "total_tokens": 870,
       "findings": [
-        "  [CRITICAL] Use of eval() on unsanitized user input (introduction/views.py:458)"
+        "  [CRITICAL] Arbitrary code execution via eval() with user input (introduction/views.py:457)"
       ]
     },
     {
@@ -91,13 +91,13 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 2.6,
-      "prompt_tokens": 622,
-      "completion_tokens": 339,
-      "total_tokens": 961,
+      "elapsed": 2.8,
+      "prompt_tokens": 1481,
+      "completion_tokens": 362,
+      "total_tokens": 1843,
       "findings": [
-        "  [CRITICAL] File Path Injection via Unsanitized User Input (introduction/views.py:991)",
-        "  [CRITICAL] Arbitrary File Write from Unsanitized User Input (introduction/views.py:992)"
+        "  [CRITICAL] Potential Path Traversal via User-Supplied 'id' Parameter (introduction/views.py:991)",
+        "  [CRITICAL] Unvalidated Blog Content Allows Stored HTML Injection (introduction/views.py:993)"
       ]
     },
     {
@@ -108,12 +108,12 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 3.0,
-      "prompt_tokens": 620,
-      "completion_tokens": 279,
-      "total_tokens": 899,
+      "elapsed": 2.4,
+      "prompt_tokens": 715,
+      "completion_tokens": 292,
+      "total_tokens": 1007,
       "findings": [
-        "  [CRITICAL] Hardcoded secret key in source code (pygoat/settings.py:24)",
+        "  [CRITICAL] Hardcoded Django SECRET_KEY (pygoat/settings.py:24)",
         "  [CRITICAL] Hardcoded sensitive data in source code (pygoat/settings.py:25)"
       ]
     },
@@ -125,12 +125,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 2.1,
-      "prompt_tokens": 600,
-      "completion_tokens": 168,
-      "total_tokens": 768,
+      "elapsed": 2.2,
+      "prompt_tokens": 1437,
+      "completion_tokens": 213,
+      "total_tokens": 1650,
       "findings": [
-        "  [CRITICAL] Potential code injection via unsanitized 'function' input in ImageMath.eval (introduction/views.py:583)"
+        "  [CRITICAL] Arbitrary code execution via untrusted input in ImageMath.eval (introduction/views.py:584)"
       ]
     },
     {
@@ -141,12 +141,12 @@
       "correct": true,
       "findings_count": 1,
       "has_critical_or_high": true,
-      "elapsed": 1.5,
-      "prompt_tokens": 579,
-      "completion_tokens": 209,
-      "total_tokens": 788,
+      "elapsed": 1.6,
+      "prompt_tokens": 674,
+      "completion_tokens": 167,
+      "total_tokens": 841,
       "findings": [
-        "  [CRITICAL] Command Injection via unsanitized input in subprocess call (introduction/views.py:441)"
+        "  [CRITICAL] Command Injection Risk via Unsanitized User Input (introduction/views.py:441)"
       ]
     },
     {
@@ -155,14 +155,15 @@
       "cwe": "CWE-798",
       "is_vulnerable": true,
       "correct": true,
-      "findings_count": 1,
+      "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 19.1,
-      "prompt_tokens": 599,
-      "completion_tokens": 135,
-      "total_tokens": 734,
+      "elapsed": 6.8,
+      "prompt_tokens": 694,
+      "completion_tokens": 272,
+      "total_tokens": 966,
       "findings": [
-        "  [CRITICAL] Hardcoded password in source code (introduction/db.py:3)"
+        "  [CRITICAL] Hardcoded database password (introduction/db.py:3)",
+        "  [HIGH] Hardcoded database username (introduction/db.py:4)"
       ]
     },
     {
@@ -173,13 +174,62 @@
       "correct": true,
       "findings_count": 2,
       "has_critical_or_high": true,
-      "elapsed": 3.2,
-      "prompt_tokens": 601,
-      "completion_tokens": 283,
-      "total_tokens": 884,
+      "elapsed": 2.6,
+      "prompt_tokens": 1439,
+      "completion_tokens": 325,
+      "total_tokens": 1764,
       "findings": [
-        "  [HIGH] Exposing passwords via JSON response (introduction/views.py:2)",
-        "  [HIGH] Lack of authentication and authorization checks (introduction/views.py:2)"
+        "  [CRITICAL] Exposing User Passwords in API Response (introduction/views.py:2)",
+        "  [HIGH] Exposing User Profile Data Without Access Control (introduction/views.py:6)"
+      ]
+    },
+    {
+      "id": "V11",
+      "name": "SQL Injection \u2014 f-string formatting",
+      "cwe": "CWE-89",
+      "is_vulnerable": true,
+      "correct": true,
+      "findings_count": 1,
+      "has_critical_or_high": true,
+      "elapsed": 1.9,
+      "prompt_tokens": 1403,
+      "completion_tokens": 183,
+      "total_tokens": 1586,
+      "findings": [
+        "  [CRITICAL] Direct SQL Injection via user input (introduction/views.py:3)"
+      ]
+    },
+    {
+      "id": "V12",
+      "name": "Hardcoded secret inside config dict",
+      "cwe": "CWE-798",
+      "is_vulnerable": true,
+      "correct": true,
+      "findings_count": 2,
+      "has_critical_or_high": true,
+      "elapsed": 1.9,
+      "prompt_tokens": 688,
+      "completion_tokens": 304,
+      "total_tokens": 992,
+      "findings": [
+        "  [CRITICAL] Hardcoded Stripe API key in configuration file (pygoat/config.py:3)",
+        "  [CRITICAL] Hardcoded Stripe webhook secret in configuration file (pygoat/config.py:4)"
+      ]
+    },
+    {
+      "id": "V13",
+      "name": "Command injection via os.system",
+      "cwe": "CWE-78",
+      "is_vulnerable": true,
+      "correct": true,
+      "findings_count": 1,
+      "has_critical_or_high": true,
+      "elapsed": 2.3,
+      "prompt_tokens": 1397,
+      "completion_tokens": 200,
+      "total_tokens": 1597,
+      "findings": [
+        "  [CRITICAL] Command injection via unsanitized user input to os.system (introduction/views.py:7)"
       ]
     },
     {
@@ -190,10 +240,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.6,
-      "prompt_tokens": 576,
-      "completion_tokens": 27,
-      "total_tokens": 603,
+      "elapsed": 1.0,
+      "prompt_tokens": 1389,
+      "completion_tokens": 56,
+      "total_tokens": 1445,
       "findings": []
     },
     {
@@ -204,10 +254,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.8,
-      "prompt_tokens": 612,
-      "completion_tokens": 30,
-      "total_tokens": 642,
+      "elapsed": 0.6,
+      "prompt_tokens": 707,
+      "completion_tokens": 45,
+      "total_tokens": 752,
       "findings": []
     },
     {
@@ -218,10 +268,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.7,
-      "prompt_tokens": 582,
-      "completion_tokens": 26,
-      "total_tokens": 608,
+      "elapsed": 0.6,
+      "prompt_tokens": 677,
+      "completion_tokens": 48,
+      "total_tokens": 725,
       "findings": []
     },
     {
@@ -232,10 +282,10 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 1.0,
-      "prompt_tokens": 638,
-      "completion_tokens": 31,
-      "total_tokens": 669,
+      "elapsed": 0.5,
+      "prompt_tokens": 733,
+      "completion_tokens": 32,
+      "total_tokens": 765,
       "findings": []
     },
     {
@@ -246,11 +296,89 @@
       "correct": true,
       "findings_count": 0,
       "has_critical_or_high": false,
-      "elapsed": 0.6,
-      "prompt_tokens": 678,
-      "completion_tokens": 30,
-      "total_tokens": 708,
+      "elapsed": 0.5,
+      "prompt_tokens": 773,
+      "completion_tokens": 32,
+      "total_tokens": 805,
       "findings": []
+    },
+    {
+      "id": "C06",
+      "name": "Clean \u2014 Django ORM query (not raw SQL)",
+      "cwe": "N/A",
+      "is_vulnerable": false,
+      "correct": true,
+      "findings_count": 1,
+      "has_critical_or_high": false,
+      "elapsed": 2.2,
+      "prompt_tokens": 1441,
+      "completion_tokens": 209,
+      "total_tokens": 1650,
+      "findings": [
+        "  [MEDIUM] Potential exposure of user identifiers via unauthenticated endpoint (introduction/views.py:7)"
+      ]
+    },
+    {
+      "id": "N01",
+      "name": "Noisy \u2014 SQL injection buried in 60-line feature addition",
+      "cwe": "CWE-89",
+      "is_vulnerable": true,
+      "correct": true,
+      "findings_count": 1,
+      "has_critical_or_high": true,
+      "elapsed": 2.0,
+      "prompt_tokens": 2375,
+      "completion_tokens": 228,
+      "total_tokens": 2603,
+      "findings": [
+        "  [CRITICAL] Possible SQL Injection in activity log search (introduction/views.py:55)"
+      ]
+    },
+    {
+      "id": "N02",
+      "name": "Noisy \u2014 hardcoded secret among 50 lines of config",
+      "cwe": "CWE-798",
+      "is_vulnerable": true,
+      "correct": true,
+      "findings_count": 1,
+      "has_critical_or_high": true,
+      "elapsed": 1.5,
+      "prompt_tokens": 1050,
+      "completion_tokens": 167,
+      "total_tokens": 1217,
+      "findings": [
+        "  [CRITICAL] Hardcoded SendGrid API Key (pygoat/settings.py:51)"
+      ]
+    },
+    {
+      "id": "N03",
+      "name": "Noisy \u2014 clean large refactor with no vulnerabilities",
+      "cwe": "N/A",
+      "is_vulnerable": false,
+      "correct": true,
+      "findings_count": 0,
+      "has_critical_or_high": false,
+      "elapsed": 0.5,
+      "prompt_tokens": 1341,
+      "completion_tokens": 31,
+      "total_tokens": 1372,
+      "findings": []
+    },
+    {
+      "id": "C07",
+      "name": "Clean \u2014 placeholder key in config template",
+      "cwe": "N/A",
+      "is_vulnerable": false,
+      "correct": false,
+      "findings_count": 1,
+      "has_critical_or_high": true,
+      "elapsed": 0.8,
+      "prompt_tokens": 700,
+      "completion_tokens": 40,
+      "total_tokens": 740,
+      "findings": [
+        "  [HIGH] Vuln agent output failed guardrail validation (unknown:0)"
+      ]
     }
   ]
 }

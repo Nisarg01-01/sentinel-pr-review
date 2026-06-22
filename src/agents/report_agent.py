@@ -1,4 +1,7 @@
-from src.models import FinalReview, VulnReport, DriftReport, QualityReport, Severity
+import os
+import json
+from openai import AzureOpenAI
+from src.models import FinalReview, VulnReport, DriftReport, QualityReport, Severity, AgentTokenUsage
 
 
 def synthesise_review(
@@ -67,7 +70,93 @@ def synthesise_review(
     )
 
 
+def generate_review_narrative(
+    client: AzureOpenAI,
+    final_review: FinalReview,
+    model: str = None,
+) -> tuple[str, AgentTokenUsage]:
+    """Uses an LLM to write a coherent GitHub review comment from all findings."""
+
+    findings_summary = {
+        "verdict": final_review.recommendation,
+        "overall_severity": final_review.overall_severity.value,
+        "quality_score": final_review.quality_score,
+        "security_findings": [
+            {
+                "severity": f.severity.value,
+                "title": f.title,
+                "file": f.file_path,
+                "line": f.line_number,
+                "description": f.description,
+                "fix": f.recommendation,
+                "cwe": f.category,
+            }
+            for f in final_review.vuln_findings
+        ],
+        "architecture_violations": [
+            {
+                "severity": f.severity.value,
+                "title": f.title,
+                "file": f.file_path,
+                "description": f.description,
+                "fix": f.recommendation,
+            }
+            for f in final_review.drift_findings
+        ],
+        "quality_findings": [
+            {
+                "severity": f.severity.value,
+                "title": f.title,
+                "description": f.description,
+                "fix": f.recommendation,
+            }
+            for f in final_review.quality_findings
+        ],
+        "action_items": final_review.action_items,
+    }
+
+    response = client.chat.completions.create(
+        model=model or os.environ.get("REPORT_MODEL", os.environ["MODEL"]),
+        max_tokens=1000,
+        messages=[
+            {
+                "role": "system",
+                "content": """You are the Report Agent for Sentinel, writing GitHub PR review comments.
+
+Write a clear, professional review comment in Markdown for a developer to read.
+Do not just list findings mechanically — reason about what the combination of findings
+means for this PR. If there are multiple issues, explain whether they are related.
+If the PR is clean, say why it looks good specifically.
+
+Structure:
+1. Opening verdict sentence — direct and specific
+2. Security findings section (if any) — each with file:line, what it is, why it matters, how to fix
+3. Architecture findings section (if any)
+4. Quality section with score and top issues
+5. Action items as a checklist
+6. One closing sentence
+
+Use markdown headers. Be direct. No generic filler sentences.""",
+            },
+            {
+                "role": "user",
+                "content": f"Write the GitHub review comment for this PR based on these findings:\n\n{json.dumps(findings_summary, indent=2)}",
+            },
+        ],
+    )
+
+    usage = AgentTokenUsage(
+        agent="report",
+        prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
+        completion_tokens=response.usage.completion_tokens if response.usage else 0,
+    )
+
+    narrative = response.choices[0].message.content.strip()
+    return narrative, usage
+
+
 def format_findings_for_github(review: FinalReview) -> str:
+    """Fallback formatter — used if narrative generation fails."""
     severity_emoji = {
         "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵", "INFO": "⚪"
     }
@@ -133,5 +222,5 @@ def format_findings_for_github(review: FinalReview) -> str:
             lines.append(f"- [ ] {item}")
         lines.append("")
 
-    lines += ["---", "*Sentinel v1.0 — Automated review powered by Azure AI Foundry + gpt-4.1-mini*"]
+    lines += ["---", "*Sentinel — Automated review powered by Azure AI Foundry + gpt-4.1-mini*"]
     return "\n".join(lines)

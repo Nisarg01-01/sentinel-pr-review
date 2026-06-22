@@ -38,6 +38,17 @@ inputs:
   azure-inference-key:
     description: API key for the Azure AI Inference endpoint
     required: true
+  vuln-model:
+    description: Model to use for vulnerability agent (defaults to model)
+    required: false
+    default: gpt-4.1-mini
+  report-model:
+    description: Model to use for report agent (defaults to model)
+    required: false
+    default: gpt-4.1-mini
+  azure-storage-connection-string:
+    description: Azure Storage connection string for finding memory (optional)
+    required: false
 
 runs:
   using: composite
@@ -66,6 +77,9 @@ runs:
         MCP_FUNCTION_URL: ${{ inputs.mcp-function-url }}
         MCP_FUNCTION_KEY: ${{ inputs.mcp-function-key }}
         AZURE_INFERENCE_KEY: ${{ inputs.azure-inference-key }}
+        VULN_MODEL: ${{ inputs.vuln-model }}
+        REPORT_MODEL: ${{ inputs.report-model }}
+        AZURE_STORAGE_CONNECTION_STRING: ${{ inputs.azure-storage-connection-string }}
       run: |
         python -c "
         import sys

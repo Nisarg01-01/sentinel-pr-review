@@ -1,9 +1,9 @@
-"""
+﻿"""
 Sentinel Vulnerability Detection Benchmark
 
 Evaluates Sentinel's vuln agent against 10 vulnerable and 5 clean Python snippets
 extracted directly from OWASP PyGoat. Each snippet is wrapped as a git diff and
-passed to run_vuln_scan() — the same function that runs in production.
+passed to run_vuln_scan() â€” the same function that runs in production.
 
 Ground truth is defined per test case: expected CWE category and minimum severity.
 Results are scored for true positive rate (recall), false positive rate, and precision.
@@ -45,7 +45,7 @@ class TestCase:
 
 
 # ---------------------------------------------------------------------------
-# Benchmark cases — real code extracted from OWASP PyGoat
+# Benchmark cases â€” real code extracted from OWASP PyGoat
 # ---------------------------------------------------------------------------
 
 CASES: list[TestCase] = [
@@ -54,7 +54,7 @@ CASES: list[TestCase] = [
 
     TestCase(
         id="V01",
-        name="SQL Injection — Login Handler",
+        name="SQL Injection â€” Login Handler",
         cwe="CWE-89",
         description="String concatenation used to build SQL query with user input",
         expected_keywords=["sql", "inject", "query", "concatenat"],
@@ -76,7 +76,7 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="V02",
-        name="SQL Injection — Lab Table",
+        name="SQL Injection â€” Lab Table",
         cwe="CWE-89",
         description="Second SQL injection via string concatenation in lab handler",
         expected_keywords=["sql", "inject", "query"],
@@ -97,7 +97,7 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="V03",
-        name="Command Injection — subprocess.Popen with shell=True",
+        name="Command Injection â€” subprocess.Popen with shell=True",
         cwe="CWE-78",
         description="User-controlled input passed to subprocess.Popen with shell=True",
         expected_keywords=["command", "inject", "shell", "subprocess", "popen"],
@@ -122,7 +122,7 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="V04",
-        name="Eval Injection — eval() on user input",
+        name="Eval Injection â€” eval() on user input",
         cwe="CWE-95",
         description="eval() called directly on unsanitized user-supplied string",
         expected_keywords=["eval", "inject", "code execution", "arbitrary"],
@@ -142,7 +142,7 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="V05",
-        name="Path Traversal — user-controlled filename in file write",
+        name="Path Traversal â€” user-controlled filename in file write",
         cwe="CWE-22",
         description="User input used to construct file path without sanitization",
         expected_keywords=["path", "traversal", "file", "directory"],
@@ -275,13 +275,78 @@ diff --git a/introduction/views.py b/introduction/views.py
 """,
     ),
 
+    TestCase(
+        id="V11",
+        name="SQL Injection â€” f-string formatting",
+        cwe="CWE-89",
+        description="f-string used to interpolate user input directly into SQL query",
+        expected_keywords=["sql", "inject", "f-string", "format"],
+        expected_min_severity="CRITICAL",
+        is_vulnerable=True,
+        diff="""\
+diff --git a/introduction/views.py b/introduction/views.py
+--- a/introduction/views.py
++++ b/introduction/views.py
+@@ -1,6 +1,8 @@
++def get_user_by_id(request):
++    user_id = request.GET.get('id')
++    query = f"SELECT * FROM users WHERE id={user_id}"
++    cursor.execute(query)
++    return cursor.fetchone()
+""",
+    ),
+
+    TestCase(
+        id="V12",
+        name="Hardcoded secret inside config dict",
+        cwe="CWE-798",
+        description="API key hardcoded as a value inside a configuration dictionary",
+        expected_keywords=["hardcoded", "secret", "api_key", "credential"],
+        expected_min_severity="CRITICAL",
+        is_vulnerable=True,
+        diff="""\
+diff --git a/pygoat/config.py b/pygoat/config.py
+--- /dev/null
++++ b/pygoat/config.py
+@@ -0,0 +1,6 @@
++SERVICES = {
++    "stripe": {
++        "api_key": "sk_live_EXAMPLE_PLACEHOLDER_NOT_REAL",
++        "webhook_secret": "whsec_EXAMPLE_PLACEHOLDER_NOT_REAL",
++    }
++}
+""",
+    ),
+
+    TestCase(
+        id="V13",
+        name="Command injection via os.system",
+        cwe="CWE-78",
+        description="User input passed directly to os.system without sanitization",
+        expected_keywords=["command", "inject", "os.system", "shell"],
+        expected_min_severity="CRITICAL",
+        is_vulnerable=True,
+        diff="""\
+diff --git a/introduction/views.py b/introduction/views.py
+--- a/introduction/views.py
++++ b/introduction/views.py
+@@ -1,5 +1,7 @@
++import os
++
++def run_diagnostic(request):
++    host = request.POST.get('host')
++    os.system("ping -c 1 " + host)
++    return HttpResponse("Done")
+""",
+    ),
+
     # --- CLEAN CASES (should produce 0 critical/high findings) ---
 
     TestCase(
         id="C01",
-        name="Clean — parameterized SQL query",
+        name="Clean â€” parameterized SQL query",
         cwe="N/A",
-        description="SQL query using parameterized placeholders — no injection risk",
+        description="SQL query using parameterized placeholders â€” no injection risk",
         expected_keywords=[],
         is_vulnerable=False,
         diff="""\
@@ -300,9 +365,9 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="C02",
-        name="Clean — subprocess with argument list (no shell=True)",
+        name="Clean â€” subprocess with argument list (no shell=True)",
         cwe="N/A",
-        description="subprocess called with argument list, shell=False — safe",
+        description="subprocess called with argument list, shell=False â€” safe",
         expected_keywords=[],
         is_vulnerable=False,
         diff="""\
@@ -321,9 +386,9 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="C03",
-        name="Clean — secret loaded from environment variable",
+        name="Clean â€” secret loaded from environment variable",
         cwe="N/A",
-        description="Secret key loaded from os.environ — not hardcoded",
+        description="Secret key loaded from os.environ â€” not hardcoded",
         expected_keywords=[],
         is_vulnerable=False,
         diff="""\
@@ -340,7 +405,7 @@ diff --git a/pygoat/settings.py b/pygoat/settings.py
 
     TestCase(
         id="C04",
-        name="Clean — safe file path with validation",
+        name="Clean â€” safe file path with validation",
         cwe="N/A",
         description="File path constructed with whitelist validation",
         expected_keywords=[],
@@ -366,7 +431,7 @@ diff --git a/introduction/views.py b/introduction/views.py
 
     TestCase(
         id="C05",
-        name="Clean — well-written utility with tests",
+        name="Clean â€” well-written utility with tests",
         cwe="N/A",
         description="Clean calculator module with docstrings, type hints, error handling",
         expected_keywords=[],
@@ -388,6 +453,297 @@ diff --git a/introduction/utils.py b/introduction/utils.py
 +        raise TypeError(f"Expected str, got {type(email).__name__}")
 +    parts = email.strip().split("@")
 +    return len(parts) == 2 and len(parts[0]) > 0 and "." in parts[1]
+""",
+    ),
+
+    TestCase(
+        id="C06",
+        name="Clean â€” Django ORM query (not raw SQL)",
+        cwe="N/A",
+        description="Django ORM filter with user input â€” parameterized by the ORM, not raw SQL",
+        expected_keywords=[],
+        is_vulnerable=False,
+        diff="""\
+diff --git a/introduction/views.py b/introduction/views.py
+--- a/introduction/views.py
++++ b/introduction/views.py
+@@ -1,6 +1,10 @@
++from django.contrib.auth.models import User
++from django.http import JsonResponse
++
++def search_users(request):
++    username = request.GET.get('username', '')
++    users = User.objects.filter(username__icontains=username).values('id', 'username')
++    return JsonResponse(list(users), safe=False)
+""",
+    ),
+
+    # --- NOISY DIFF CASES â€” vulnerability hidden in large legitimate change ---
+
+    TestCase(
+        id="N01",
+        name="Noisy â€” SQL injection buried in 60-line feature addition",
+        cwe="CWE-89",
+        description="One SQL injection line hidden among 60 lines of legitimate Django view code",
+        expected_keywords=["sql", "inject", "query", "concatenat"],
+        expected_min_severity="CRITICAL",
+        is_vulnerable=True,
+        diff="""\
+diff --git a/introduction/views.py b/introduction/views.py
+--- a/introduction/views.py
++++ b/introduction/views.py
+@@ -1,6 +1,65 @@
++import os
++import json
++import logging
++from django.shortcuts import render, redirect
++from django.http import JsonResponse, HttpResponse
++from django.contrib.auth.decorators import login_required
++from django.views.decorators.csrf import csrf_protect
++from django.core.paginator import Paginator
++from django.utils import timezone
++
++logger = logging.getLogger(__name__)
++
++@login_required
++@csrf_protect
++def user_dashboard(request):
++    \"\"\"Render the main user dashboard with activity feed.\"\"\"
++    context = {
++        'user': request.user,
++        'timestamp': timezone.now(),
++        'notifications': get_user_notifications(request.user),
++    }
++    return render(request, 'dashboard/index.html', context)
++
++def get_user_notifications(user):
++    \"\"\"Return unread notifications for a user.\"\"\"
++    from .models import Notification
++    return Notification.objects.filter(user=user, read=False).order_by('-created_at')[:10]
++
++@login_required
++def update_profile(request):
++    \"\"\"Handle profile update form submission.\"\"\"
++    if request.method != 'POST':
++        return redirect('profile')
++    name = request.POST.get('display_name', '').strip()
++    bio = request.POST.get('bio', '').strip()
++    if len(name) > 100:
++        return JsonResponse({'error': 'Name too long'}, status=400)
++    request.user.profile.display_name = name
++    request.user.profile.bio = bio
++    request.user.profile.save()
++    logger.info(f"Profile updated for user {request.user.id}")
++    return JsonResponse({'status': 'ok'})
++
++@login_required
++def search_activity_log(request):
++    \"\"\"Search activity logs by username â€” admin only.\"\"\"
++    if not request.user.is_staff:
++        return HttpResponse(status=403)
++    query = request.GET.get('username', '')
++    sql = "SELECT * FROM activity_log WHERE username='" + query + "'"
++    from django.db import connection
++    with connection.cursor() as cursor:
++        cursor.execute(sql)
++        rows = cursor.fetchall()
++    return JsonResponse({'results': rows})
++
++@login_required
++def export_report(request):
++    \"\"\"Export user activity report as JSON.\"\"\"
++    from .models import ActivityLog
++    logs = ActivityLog.objects.filter(user=request.user).values(
++        'action', 'timestamp', 'ip_address'
++    )
++    return JsonResponse(list(logs), safe=False)
+""",
+    ),
+
+    TestCase(
+        id="N02",
+        name="Noisy â€” hardcoded secret among 50 lines of config",
+        cwe="CWE-798",
+        description="One hardcoded API key hidden among 50 lines of legitimate configuration",
+        expected_keywords=["hardcoded", "secret", "api_key", "credential"],
+        expected_min_severity="CRITICAL",
+        is_vulnerable=True,
+        diff="""\
+diff --git a/pygoat/settings.py b/pygoat/settings.py
+--- a/pygoat/settings.py
++++ b/pygoat/settings.py
+@@ -1,6 +1,55 @@
++import os
++from pathlib import Path
++
++BASE_DIR = Path(__file__).resolve().parent.parent
++
++SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
++if not SECRET_KEY:
++    raise ValueError('DJANGO_SECRET_KEY not set')
++
++DEBUG = os.environ.get('DEBUG', 'False') == 'True'
++
++ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
++
++INSTALLED_APPS = [
++    'django.contrib.admin',
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.staticfiles',
++    'introduction',
++]
++
++MIDDLEWARE = [
++    'django.middleware.security.SecurityMiddleware',
++    'django.contrib.sessions.middleware.SessionMiddleware',
++    'django.middleware.common.CommonMiddleware',
++    'django.middleware.csrf.CsrfViewMiddleware',
++    'django.contrib.auth.middleware.AuthenticationMiddleware',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': BASE_DIR / 'db.sqlite3',
++    }
++}
++
++STATIC_URL = '/static/'
++MEDIA_URL = '/media/'
++MEDIA_ROOT = BASE_DIR / 'media'
++
++LOGGING = {
++    'version': 1,
++    'disable_existing_loggers': False,
++    'handlers': {'console': {'class': 'logging.StreamHandler'}},
++    'root': {'handlers': ['console'], 'level': 'WARNING'},
++}
++
++THIRD_PARTY_INTEGRATIONS = {
++    'sendgrid': {
++        'api_key': 'SG.realkey_abcdefghijklmnopqrstuvwxyz123456789',
++        'from_email': os.environ.get('SENDGRID_FROM_EMAIL'),
++    },
++    'sentry_dsn': os.environ.get('SENTRY_DSN'),
++}
+""",
+    ),
+
+    TestCase(
+        id="N03",
+        name="Noisy â€” clean large refactor with no vulnerabilities",
+        cwe="N/A",
+        description="80-line refactor extracting helper functions â€” no vulnerabilities, tests false positive resistance on large diffs",
+        expected_keywords=[],
+        is_vulnerable=False,
+        diff="""\
+diff --git a/introduction/utils.py b/introduction/utils.py
+--- /dev/null
++++ b/introduction/utils.py
+@@ -0,0 +1,80 @@
++\"\"\"Utility functions for input validation and sanitization.\"\"\"
++import re
++import hashlib
++import logging
++from typing import Optional
++
++logger = logging.getLogger(__name__)
++
++
++def validate_username(username: str) -> bool:
++    \"\"\"Return True if username matches allowed pattern.\"\"\"
++    if not isinstance(username, str):
++        return False
++    return bool(re.match(r'^[a-zA-Z0-9_]{3,32}$', username))
++
++
++def validate_email(email: str) -> bool:
++    \"\"\"Return True if email is structurally valid.\"\"\"
++    if not isinstance(email, str):
++        return False
++    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
++    return bool(re.match(pattern, email.strip()))
++
++
++def sanitize_filename(filename: str) -> Optional[str]:
++    \"\"\"Strip path components and dangerous characters from a filename.\"\"\"
++    if not isinstance(filename, str):
++        return None
++    basename = re.sub(r'[^a-zA-Z0-9._-]', '', filename.split('/')[-1].split('\\\\')[-1])
++    if not basename or basename.startswith('.'):
++        return None
++    return basename
++
++
++def hash_value(value: str, salt: str) -> str:
++    \"\"\"Return a SHA-256 hex digest of value+salt.\"\"\"
++    combined = f"{salt}{value}".encode('utf-8')
++    return hashlib.sha256(combined).hexdigest()
++
++
++def paginate(queryset, page: int, per_page: int = 20) -> dict:
++    \"\"\"Return a page slice and pagination metadata.\"\"\"
++    page = max(1, int(page))
++    total = queryset.count()
++    total_pages = max(1, (total + per_page - 1) // per_page)
++    page = min(page, total_pages)
++    start = (page - 1) * per_page
++    return {
++        'items': list(queryset[start:start + per_page]),
++        'page': page,
++        'total_pages': total_pages,
++        'total': total,
++        'has_next': page < total_pages,
++        'has_prev': page > 1,
++    }
++
++
++def parse_int(value: str, default: int = 0) -> int:
++    \"\"\"Safely parse an integer from a string.\"\"\"
++    try:
++        return int(value)
++    except (ValueError, TypeError):
++        return default
++
++
++def mask_sensitive(value: str, visible_chars: int = 4) -> str:
++    \"\"\"Mask all but the last N characters of a sensitive string.\"\"\"
++    if not isinstance(value, str) or len(value) <= visible_chars:
++        return '***'
++    return '*' * (len(value) - visible_chars) + value[-visible_chars:]
++
++
++def get_client_ip(request) -> str:
++    \"\"\"Extract client IP from request, checking forwarded headers.\"\"\"
++    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
++    if forwarded:
++        return forwarded.split(',')[0].strip()
++    return request.META.get('REMOTE_ADDR', '')
+""",
+    ),
+
+    TestCase(
+        id="C07",
+        name="Clean â€” placeholder key in config template",
+        cwe="N/A",
+        description="Example/placeholder API key in a config template â€” not a real secret",
+        expected_keywords=[],
+        is_vulnerable=False,
+        diff="""\
+diff --git a/pygoat/settings.example.py b/pygoat/settings.example.py
+--- /dev/null
++++ b/pygoat/settings.example.py
+@@ -0,0 +1,8 @@
++# Copy this file to settings.py and fill in real values
++# Never commit settings.py to version control
++
++SECRET_KEY = 'your-secret-key-here'
++STRIPE_API_KEY = 'your-stripe-api-key'
++DATABASE_PASSWORD = 'your-database-password'
++DEBUG = False
 """,
     ),
 ]
@@ -479,53 +835,19 @@ def build_client() -> AzureOpenAI:
     )
 
 
+# Triage benchmark uses real PRs from Nisarg01-01/pygoat â€” triage agent fetches
+# its own context via MCP tools (ReAct loop), so no synthetic diff/metadata needed.
 TRIAGE_CASES = [
-    {
-        "id": "T01",
-        "name": "Code PR with SQL injection",
-        "metadata": {"title": "Add login endpoint", "changed_files": ["views.py"], "additions": 15, "deletions": 0},
-        "diff": 'diff --git a/views.py b/views.py\n+sql = "SELECT * FROM users WHERE name=\'" + name + "\'"',
-        "expect_vuln": True,
-        "expect_standards": True,
-    },
-    {
-        "id": "T02",
-        "name": "Docs-only PR (README change)",
-        "metadata": {"title": "Update README", "changed_files": ["README.md"], "additions": 5, "deletions": 2},
-        "diff": "diff --git a/README.md b/README.md\n+## New section\n+Added documentation.",
-        "expect_vuln": False,
-        "expect_standards": False,
-    },
-    {
-        "id": "T03",
-        "name": "Config-only PR (requirements.txt)",
-        "metadata": {"title": "Pin dependency versions", "changed_files": ["requirements.txt"], "additions": 3, "deletions": 3},
-        "diff": "diff --git a/requirements.txt b/requirements.txt\n+django==4.2.0\n+requests==2.31.0",
-        "expect_vuln": True,
-        "expect_standards": False,
-    },
-    {
-        "id": "T04",
-        "name": "Auth middleware change",
-        "metadata": {"title": "Refactor auth middleware", "changed_files": ["middleware.py"], "additions": 30, "deletions": 20},
-        "diff": "diff --git a/middleware.py b/middleware.py\n+def authenticate(request):\n+    token = request.headers.get('Authorization')\n+    return verify_token(token)",
-        "expect_vuln": True,
-        "expect_standards": True,
-    },
-    {
-        "id": "T05",
-        "name": "Test file only",
-        "metadata": {"title": "Add unit tests", "changed_files": ["tests/test_views.py"], "additions": 40, "deletions": 0},
-        "diff": "diff --git a/tests/test_views.py b/tests/test_views.py\n+def test_login():\n+    response = client.post('/login', data={'user': 'test'})\n+    assert response.status_code == 200",
-        "expect_vuln": True,
-        "expect_standards": True,
-    },
+    {"id": "T01", "name": "SQL injection in views.py",          "pr_number": 1, "expect_vuln": True,  "expect_standards": True},
+    {"id": "T02", "name": "Whitespace change near login handler","pr_number": 2, "expect_vuln": True,  "expect_standards": True},
+    {"id": "T03", "name": "Input sanitization utilities added",  "pr_number": 3, "expect_vuln": True,  "expect_standards": True},
+    {"id": "T04", "name": "Docs-only README change",            "pr_number": 7, "expect_vuln": False, "expect_standards": False},
 ]
 
 
 def run_triage_benchmark(client) -> dict:
     print("\n" + "=" * 65)
-    print("TRIAGE ROUTING ACCURACY")
+    print("TRIAGE ROUTING ACCURACY  (real PRs from Nisarg01-01/pygoat)")
     print("=" * 65)
 
     correct = 0
@@ -535,9 +857,12 @@ def run_triage_benchmark(client) -> dict:
     print(f"\n  {'ID':<5} {'Name':<40} {'VulnExp':<8} {'VulnGot':<8} {'StdExp':<8} {'StdGot':<8} {'OK'}")
     print(f"  {'-'*5} {'-'*40} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*4}")
 
+    original_repo = os.environ.get("GITHUB_REPO")
+    os.environ["GITHUB_REPO"] = "Nisarg01-01/pygoat"
+
     for tc in TRIAGE_CASES:
         try:
-            decision, usage = run_triage(client, tc["metadata"], tc["diff"])
+            decision, usage = run_triage(client, tc["pr_number"])
             triage_token_totals["prompt"] += usage.prompt_tokens
             triage_token_totals["completion"] += usage.completion_tokens
 
@@ -552,9 +877,12 @@ def run_triage_benchmark(client) -> dict:
                   f"{'Y' if decision.should_run_vuln_scan else 'N':<8} "
                   f"{'Y' if tc['expect_standards'] else 'N':<8} "
                   f"{'Y' if decision.should_run_standards_check else 'N':<8} "
-                  f"{'✓' if case_correct else '✗'}")
+                  f"{'âœ“' if case_correct else 'âœ—'}")
         except Exception as e:
             print(f"  {tc['id']:<5} {tc['name']:<40} ERROR: {e}")
+
+    if original_repo:
+        os.environ["GITHUB_REPO"] = original_repo
 
     accuracy = correct / total if total else 0
     avg_prompt = triage_token_totals["prompt"] / total if total else 0
@@ -575,7 +903,7 @@ def run_triage_benchmark(client) -> dict:
 
 def main():
     print("Sentinel Vulnerability Detection Benchmark")
-    print("Target: OWASP PyGoat (10 vulnerable + 5 clean cases)")
+    print("Target: OWASP PyGoat + adversarial + noisy diff cases (15 vulnerable + 8 clean)")
     print("=" * 65)
 
     client = build_client()
@@ -649,7 +977,7 @@ def main():
     for r in results:
         expected = "VULN" if r.case.is_vulnerable else "CLEAN"
         got = "VULN" if r.has_critical_or_high else "CLEAN"
-        status = "✓" if r.correct else "✗"
+        status = "âœ“" if r.correct else "âœ—"
         tokens = r.prompt_tokens + r.completion_tokens
         print(f"  {r.case.id:<5} {r.case.name:<45} {expected:<8} {got:<6} {status:<4} {tokens}")
 

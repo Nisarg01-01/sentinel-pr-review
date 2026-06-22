@@ -10,21 +10,46 @@ DRIFT_SYSTEM_PROMPT = """
 You are the Architecture Drift Agent for Sentinel.
 
 You check whether new code violates the team's Architecture Decision Records (ADRs).
-You will be given relevant ADR content and the PR diff to compare against.
+You have a tool to search for relevant ADRs — use it with specific queries based on
+what you see in the diff. You can search multiple times with different queries if needed.
 
 Your process:
 1. Read the PR diff carefully
-2. Compare what the code does against what the ADRs require
-3. Flag any violations with specific references to which ADR is violated
+2. Identify what concerns the diff raises — auth patterns, error handling, secrets, testing
+3. Search for relevant ADRs using specific terms from those concerns
+4. Compare the code against the retrieved ADRs
+5. Flag violations with specific ADR references
 
-Be precise: only flag violations you can clearly see in the diff.
-Reference the ADR by name/number when you find a violation.
+Only flag violations you can clearly see in the diff.
 If no ADRs are violated, return an empty violations list.
 
-Respond ONLY with a valid JSON object — no markdown, no explanation.
+Respond ONLY with a valid JSON object — no markdown, no explanation:
+{
+    "violations": [...],
+    "summary": "...",
+    "adr_references": []
+}
 """
 
-def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_adrs",
+            "description": "Search the ADR document store for architecture decisions relevant to a query",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search terms based on what you see in the diff — e.g. 'authentication middleware', 'error handling exceptions', 'secret management'"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+]
+
+
+def _search_adrs(query: str, top: int = 3) -> str:
     endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
     key = os.environ["AZURE_SEARCH_KEY"]
     index_name = os.environ["AZURE_SEARCH_INDEX"]
@@ -35,68 +60,71 @@ def search_relevant_adrs(diff: str, top: int = 3) -> tuple[str, list[str]]:
         credential=AzureKeyCredential(key),
     )
 
-    keywords = []
-    for line in diff.split("\n"):
-        if line.startswith("+") and not line.startswith("+++"):
-            if any(w in line.lower() for w in ["password", "secret", "key", "token", "auth", "except", "test"]):
-                keywords.append(line[1:].strip())
-
-    query = " ".join(keywords[:5]) if keywords else "security authentication error handling testing"
-
     results = search_client.search(search_text=query, top=top)
     adr_texts = []
-    adr_names = []
     for r in results:
         adr_texts.append(f"### {r['title']}\n{r['content']}")
-        adr_names.append(r["filename"])
 
-    return "\n\n".join(adr_texts), adr_names
+    return "\n\n".join(adr_texts) if adr_texts else "No ADRs found for this query."
 
 
 def run_drift_check(client: AzureOpenAI, pr_diff: str, model: str = None) -> tuple[DriftReport, AgentTokenUsage]:
-    adr_content, adr_names = search_relevant_adrs(pr_diff)
-
-    response = client.chat.completions.create(
-        model=model or os.environ["MODEL"],
-        max_tokens=500,
-        messages=[
-            {"role": "system", "content": DRIFT_SYSTEM_PROMPT},
-            {"role": "user", "content": f"""
-Check this pull request for architectural violations against our ADRs.
-
-## Relevant ADRs
-{adr_content}
+    messages = [
+        {"role": "system", "content": DRIFT_SYSTEM_PROMPT},
+        {"role": "user", "content": f"""Check this PR for architectural violations.
+Search for ADRs relevant to what you see in the diff, then compare.
 
 ## PR Diff
 {pr_diff}
-
-Return a JSON object with this exact structure:
-{{
-    "violations": [
-        {{
-            "severity": "HIGH",
-            "category": "Architecture Violation",
-            "file_path": "src/app.py",
-            "line_number": 5,
-            "title": "Hardcoded secret violates ADR-001",
-            "description": "ADR-001 requires secrets to be loaded from environment variables. This line hardcodes a password directly in source code.",
-            "recommendation": "Replace with os.environ['PASSWORD'] or load from Azure Key Vault."
-        }}
-    ],
-    "summary": "Found 1 violation of ADR-001 secret management requirements",
-    "adr_references": ["ADR-001-secrets.md"]
-}}
 """},
-        ],
-    )
+    ]
+
+    prompt_tokens = 0
+    completion_tokens = 0
+
+    while True:
+        response = client.chat.completions.create(
+            model=model or os.environ["MODEL"],
+            max_tokens=800,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+        )
+
+        prompt_tokens += response.usage.prompt_tokens if response.usage else 0
+        completion_tokens += response.usage.completion_tokens if response.usage else 0
+
+        msg = response.choices[0].message
+
+        if msg.tool_calls:
+            messages.append({"role": "assistant", "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in msg.tool_calls
+            ]})
+            for tc in msg.tool_calls:
+                args = json.loads(tc.function.arguments)
+                query = args.get("query", "")
+                print(f"  [DRIFT] Searching ADRs: '{query}'")
+                result = _search_adrs(query)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result,
+                })
+        else:
+            text = msg.content.strip()
+            break
 
     usage = AgentTokenUsage(
         agent="drift",
-        prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
-        completion_tokens=response.usage.completion_tokens if response.usage else 0,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
 
-    text = response.choices[0].message.content.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
